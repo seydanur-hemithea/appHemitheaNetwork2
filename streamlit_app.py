@@ -13,7 +13,7 @@ st.markdown("""
     .main > div { padding: 0rem 0.5rem; }
     iframe { width: 100% !important; height: 500px !important; }
     </style>
-    """, unsafe_allow_escaping=True)
+    """, unsafe_allow_html=True)
 
 st.title("📊 Ağ Analiz Paneli")
 

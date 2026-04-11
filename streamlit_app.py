@@ -19,7 +19,7 @@ st.title("📊 Ağ Analiz Paneli")
 
 # RENDER ÜZERİNDEKİ DOSYAYI OKUMA
 # Not: Render linkini buraya tam olarak yazmalısın
-RENDER_CSV_URL = "https://hemithea-backend.onrender.com/uploads/data.csv"
+RENDER_CSV_URL = "https://apphemitheanetwork.onrender.com"
 
 @st.cache_data(ttl=5) # Her 5 saniyede bir yeni veri var mı diye bakabilir
 def load_data():

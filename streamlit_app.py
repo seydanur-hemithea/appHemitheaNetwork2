@@ -60,3 +60,43 @@ if data is not None:
 
 else:
     st.warning("Henüz analiz edilecek bir veri yüklenmedi. Lütfen uygulamadan dosya seçin.")
+
+#end
+if data is not None:
+    G = nx.from_pandas_edgelist(data, source='Source', target='Target')
+    
+    # 1. HESAPLAMALAR (Metrikler)
+    # Derece Merkeziliği: Kimin kaç bağlantısı var?
+    degree_cent = nx.degree_centrality(G)
+    # Arasındalık Merkeziliği: Kim köprü görevi görüyor?
+    betweenness = nx.betweenness_centrality(G)
+    
+    # Metrikleri DataFrame yapalım
+    metrics_df = pd.DataFrame({
+        'Düğüm': list(degree_cent.keys()),
+        'Bağlantı Gücü': list(degree_cent.values()),
+        'Köprü Rolü': list(betweenness.values())
+    }).sort_values(by='Bağlantı Gücü', ascending=False)
+
+    # 2. SEKMELİ GÖRÜNÜM (Mobil için çok daha temizdir)
+    tab1, tab2, tab3 = st.tabs(["🌐 Ağ Grafiği", "📊 İstatistikler", "📋 Veri"])
+
+    with tab1:
+        st.subheader("Etkileşimli Ağ Haritası")
+        net = Network(height="500px", width="100%", bgcolor="#ffffff")
+        net.from_nx(G)
+        html_data = net.generate_html()
+        components.html(html_data, height=550)
+
+    with tab2:
+        st.subheader("Ağ Metrikleri")
+        # En önemli düğümleri gösteren bir özet kartı
+        top_node = metrics_df.iloc[0]['Düğüm']
+        st.metric(label="En Merkezi Aktör", value=top_node)
+        
+        st.write("Düğüm Bazlı Analiz:")
+        st.dataframe(metrics_df, use_container_width=True)
+
+    with tab3:
+        st.subheader("Ham Veri Seti")
+        st.dataframe(data, use_container_width=True)

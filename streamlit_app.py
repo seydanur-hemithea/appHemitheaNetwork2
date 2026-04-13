@@ -3,100 +3,95 @@ import pandas as pd
 import networkx as nx
 from pyvis.network import Network
 import streamlit.components.v1 as components
+import requests
+from io import StringIO
 
-# Sayfa Ayarları (Mobil için geniş ekran ve başlık)
+# 1. Sayfa Ayarları
 st.set_page_config(page_title="Hemithea Analiz", layout="wide")
 
-# Mobil için CSS Dokunuşu (Kenar boşluklarını sıfırlıyoruz)
+# Mobil CSS
 st.markdown("""
     <style>
-    .main > div { padding: 0rem 0.5rem; }
-    iframe { width: 100% !important; height: 500px !important; }
+    .main > div { padding: 0.5rem; }
+    iframe { width: 100% !important; }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("📊 Ağ Analiz Paneli")
+# 2. Dinamik Veri Yükleme (Android ID'sine Göre)
+query_params = st.query_params
+user_id = query_params.get("user_id")
 
-# RENDER ÜZERİNDEKİ DOSYAYI OKUMA
-# Not: Render linkini buraya tam olarak yazmalısın
-RENDER_CSV_URL = "https://apphemitheanetwork.onrender.com/uploads/data.csv"
+# Render üzerindeki baz URL (Senin Render linkin)
+BASE_RENDER_URL = "https://apphemitheanetwork.onrender.com/uploads"
 
-@st.cache_data(ttl=5) # Her 5 saniyede bir yeni veri var mı diye bakabilir
-def load_data():
+@st.cache_data(ttl=2) # 2 saniyede bir tazele ki Android'den gelince hemen görünsün
+def load_dynamic_data(uid):
+    if not uid:
+        return None
     try:
-        # Doğrudan Render linkinden oku
-        df = pd.read_csv(RENDER_CSV_URL)
-        return df
-    except Exception as e:
+        # Android'in gönderdiği tam yol: uploads/{user_id}/network_data.csv
+        target_url = f"{BASE_RENDER_URL}/{uid}/network_data.csv"
+        response = requests.get(target_url)
+        if response.status_code == 200:
+            return pd.read_csv(StringIO(response.text))
+        return None
+    except:
         return None
 
-data = load_data()
+st.title("🌐 Hemithea Network Analytics")
+
+# Veriyi yükle
+data = load_dynamic_data(user_id)
 
 if data is not None:
-    st.success("Yeni Veri Algılandı!")
-    
-    # Ağ Analizi Başlasın
-    G = nx.from_pandas_edgelist(data, source='Source', target='Target')
-    
-    # Görselleştirme (Pyvis ile Mobil Uyumlu)
-    net = Network(height="500px", width="100%", bgcolor="#ffffff", font_color="black")
-    net.from_nx(G)
-    
-    # Mobil için etkileşim ayarları
-    net.set_options("""
-    var options = {
-      "physics": { "enabled": true, "stabilization": { "enabled": true } },
-      "interaction": { "zoomView": true, "dragView": true }
-    }
-    """)
+    # 3. Sütun İsimlerini Esnek Yapalım (Hata almamak için)
+    # Eğer CSV'de 'Source' yoksa ilk iki sütunu kullan
+    cols = data.columns.tolist()
+    src = cols[0]
+    tgt = cols[1]
 
-    # HTML olarak render et
-    html_data = net.generate_html()
-    components.html(html_data, height=550)
+    st.success(f"✅ Analiz Hazır! (Kullanıcı: {user_id})")
     
-    # Küçük bir özet tablo
-    st.subheader("Veri Özeti")
-    st.dataframe(data.head(5), use_container_width=True)
+    # 4. Sekmeli Görünüm (Zekice Tasarım)
+    tab1, tab2, tab3 = st.tabs(["🕸️ Ağ Haritası", "📈 Metrikler", "📄 Veri"])
 
-else:
-    st.warning("Henüz analiz edilecek bir veri yüklenmedi. Lütfen uygulamadan dosya seçin.")
-
-#end
-if data is not None:
-    G = nx.from_pandas_edgelist(data, source='Source', target='Target')
-    
-    # 1. HESAPLAMALAR (Metrikler)
-    # Derece Merkeziliği: Kimin kaç bağlantısı var?
-    degree_cent = nx.degree_centrality(G)
-    # Arasındalık Merkeziliği: Kim köprü görevi görüyor?
-    betweenness = nx.betweenness_centrality(G)
-    
-    # Metrikleri DataFrame yapalım
-    metrics_df = pd.DataFrame({
-        'Düğüm': list(degree_cent.keys()),
-        'Bağlantı Gücü': list(degree_cent.values()),
-        'Köprü Rolü': list(betweenness.values())
-    }).sort_values(by='Bağlantı Gücü', ascending=False)
-
-    # 2. SEKMELİ GÖRÜNÜM (Mobil için çok daha temizdir)
-    tab1, tab2, tab3 = st.tabs(["🌐 Ağ Grafiği", "📊 İstatistikler", "📋 Veri"])
+    G = nx.from_pandas_edgelist(data, source=src, target=tgt)
 
     with tab1:
-        st.subheader("Etkileşimli Ağ Haritası")
-        net = Network(height="500px", width="100%", bgcolor="#ffffff")
+        # Pyvis Görselleştirme
+        net = Network(height="600px", width="100%", bgcolor="#ffffff", font_color="black")
         net.from_nx(G)
-        html_data = net.generate_html()
-        components.html(html_data, height=550)
+        
+        # Fizik motoru ayarları (Daha ferah görünüm)
+        net.toggle_physics(True)
+        html_content = net.generate_html()
+        components.html(html_content, height=650)
 
     with tab2:
-        st.subheader("Ağ Metrikleri")
-        # En önemli düğümleri gösteren bir özet kartı
-        top_node = metrics_df.iloc[0]['Düğüm']
-        st.metric(label="En Merkezi Aktör", value=top_node)
+        # Analitik Metrikler
+        degree_cent = nx.degree_centrality(G)
+        betweenness = nx.betweenness_centrality(G)
         
-        st.write("Düğüm Bazlı Analiz:")
+        metrics_df = pd.DataFrame({
+            'Aktör': list(degree_cent.keys()),
+            'Etki Gücü': list(degree_cent.values()),
+            'Köprü Rolü': list(betweenness.values())
+        }).sort_values(by='Etki Gücü', ascending=False)
+
+        col1, col2 = st.columns(2)
+        col1.metric("Toplam Düğüm", len(G.nodes))
+        col2.metric("En Popüler", metrics_df.iloc[0]['Aktör'])
+        
         st.dataframe(metrics_df, use_container_width=True)
 
     with tab3:
-        st.subheader("Ham Veri Seti")
         st.dataframe(data, use_container_width=True)
+
+else:
+    # Veri yoksa kullanıcıyı karşılayan ekran
+    st.info("👋 Hoş geldin Şeyda Nur! Analiz edilecek veri bekleniyor...")
+    st.warning("Lütfen Android uygulamasından bir dosya yükle.")
+    # Debug için ID'yi göster
+    if user_id:
+        st.write(f"Aranan ID: {user_id}")
+        st.write(f"Beklenen Yol: {BASE_RENDER_URL}/{user_id}/network_data.csv")

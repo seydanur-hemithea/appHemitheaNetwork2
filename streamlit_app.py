@@ -26,6 +26,21 @@ BASE_RENDER_URL = "https://apphemitheanetwork.onrender.com/uploads"
 
 @st.cache_data(ttl=2) # 2 saniyede bir tazele ki Android'den gelince hemen görünsün
 def load_dynamic_data(uid):
+    if user_id:
+    test_url = f"{BASE_RENDER_URL}/{user_id}/network_data.csv"
+    st.sidebar.info(f"🔍 Denenen URL: {test_url}")
+    
+    # Manuel bir kontrol butonu (opsiyonel ama hayat kurtarır)
+    if st.sidebar.button("Bağlantıyı Manuel Test Et"):
+        res = requests.get(test_url)
+        st.sidebar.write(f"📡 Sunucu Durum Kodu: {res.status_code}")
+        if res.status_code == 200:
+            st.sidebar.success("Dosya bulundu!")
+        else:
+            st.sidebar.error("Dosya bulunamadı (404) veya erişim yasak (403).")
+
+
+    
     if not uid:
         return None
     try:

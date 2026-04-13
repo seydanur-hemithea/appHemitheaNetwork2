@@ -89,8 +89,8 @@ if data is not None:
 
 else:
     # Veri yoksa kullanıcıyı karşılayan ekran
-    st.info("👋 Hoş geldin Şeyda Nur! Analiz edilecek veri bekleniyor...")
-    st.warning("Lütfen Android uygulamasından bir dosya yükle.")
+    st.info("👋 Hoş geldiniz! Analiz edilecek veri bekleniyor...")
+    st.warning("Lütfen Android uygulamasından bir dosya yükleyin.")
     # Debug için ID'yi göster
     if user_id:
         st.write(f"Aranan ID: {user_id}")

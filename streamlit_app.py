@@ -102,7 +102,7 @@ if data is not None:
 
 else:
     st.info("👋 Hoş geldiniz! Analiz edilecek veri bekleniyor...")
-    if not user_id:
+    if not current_username:
         st.warning("Uygulama üzerinden giriş yapmanız gerekiyor.")
     else:
-        st.warning(f"ID {user_id} için sunucuda dosya bulunamadı. Lütfen Android'den dosya seçip gönderin.")
+        st.warning(f"NAME {current_username} için sunucuda dosya bulunamadı. Lütfen Android'den dosya seçip gönderin.")

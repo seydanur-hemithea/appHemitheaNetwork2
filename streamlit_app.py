@@ -22,11 +22,11 @@ BASE_RENDER_URL = "https://apphemitheanetwork.onrender.com/uploads"
 
 # 2. Dinamik Veri Yükleme Fonksiyonu
 @st.cache_data(ttl=2)
-def load_dynamic_data(uid):
-    if not uid:
+def load_dynamic_data(uname):
+    if not uname:
         return None
     try:
-        target_url = f"{BASE_RENDER_URL}/{uid}/network_data.csv"
+        target_url = f"{BASE_RENDER_URL}/{uname}/network_data.csv"
         response = requests.get(target_url, timeout=5)
         if response.status_code == 200:
             return pd.read_csv(StringIO(response.text))
@@ -37,15 +37,15 @@ def load_dynamic_data(uid):
 # --- ANA AKIŞ ---
 st.title("🌐 Hemithea Network Analytics")
 
-# URL parametresinden user_id al
+# URL parametresinden user_name al
 query_params = st.query_params
-user_id = query_params.get("user_id")
+current_username = query_params.get("username")
 
 # --- DEDEKTİF PANELİ (SIDEBAR) ---
-if user_id:
+if current_username:
     st.sidebar.title("🔍 Sistem Denetimi")
-    test_url = f"{BASE_RENDER_URL}/{user_id}/network_data.csv"
-    st.sidebar.info(f"Kullanıcı ID: {user_id}")
+    test_url = f"{BASE_RENDER_URL}/{current_username}/network_data.csv"
+    st.sidebar.info(f"Kullanıcı Adı: {current_username}")
     
     if st.sidebar.button("🔗 Bağlantıyı Manuel Test Et"):
         try:
@@ -59,7 +59,7 @@ if user_id:
             st.sidebar.error(f"Bağlantı Hatası: {e}")
 
 # Veriyi yüklemeyi dene
-data = load_dynamic_data(user_id)
+data = load_dynamic_data(current_username)
 
 if data is not None:
     # Sütunları belirle

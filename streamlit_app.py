@@ -22,14 +22,19 @@ BASE_RENDER_URL = "https://apphemitheanetwork.onrender.com/uploads"
 
 # 2. Dinamik Veri Yükleme Fonksiyonu
 @st.cache_data(ttl=2)
-def load_dynamic_data(uname):
-    if not uname:
+def load_dynamic_data(uname, token): # Token parametresi eklendi
+    if not uname or not token:
         return None
     try:
-        target_url = f"{BASE_RENDER_URL}/{uname}/network_data.csv"
+        # FastAPI'ye giderken token'ı query parametresi olarak ekliyoruz
+        target_url = f"{BASE_RENDER_URL}/{uname}/network_data.csv?token={token}"
         response = requests.get(target_url, timeout=5)
+        
         if response.status_code == 200:
             return pd.read_csv(StringIO(response.text))
+        elif response.status_code == 401:
+            st.error("🔑 Yetkisiz Erişim: Anahtarınız geçersiz veya süresi dolmuş.")
+            return None
         return None
     except Exception as e:
         return None
@@ -40,26 +45,30 @@ st.title("🌐 Hemithea Network Analytics")
 # URL parametresinden user_name al
 query_params = st.query_params
 current_username = query_params.get("username")
+current_token = query_params.get("token")
 
 # --- DEDEKTİF PANELİ (SIDEBAR) ---
+
 if current_username:
     st.sidebar.title("🔍 Sistem Denetimi")
-    test_url = f"{BASE_RENDER_URL}/{current_username}/network_data.csv"
     st.sidebar.info(f"Kullanıcı Adı: {current_username}")
     
     if st.sidebar.button("🔗 Bağlantıyı Manuel Test Et"):
         try:
+            # Test ederken de token kullanmalıyız
+            test_url = f"{BASE_RENDER_URL}/{current_username}/network_data.csv?token={current_token}"
             res = requests.get(test_url, timeout=5)
             if res.status_code == 200:
-                st.sidebar.success(f"📡 Dosya bulundu! (Kod: 200)")
+                st.sidebar.success(f"📡 Güvenli bağlantı kuruldu!")
             else:
-                st.sidebar.error(f"📡 Dosya Yok! (Hata Kodu: {res.status_code})")
-                st.sidebar.warning("İpucu: Android'in dosyayı doğru klasöre attığından emin ol.")
+                st.sidebar.error(f"📡 Erişim Reddedildi! (Kod: {res.status_code})")
         except Exception as e:
             st.sidebar.error(f"Bağlantı Hatası: {e}")
 
+
 # Veriyi yüklemeyi dene
-data = load_dynamic_data(current_username)
+data = load_dynamic_data(current_username, current_token)
+
 
 if data is not None:
     # Sütunları belirle
@@ -102,7 +111,7 @@ if data is not None:
 
 else:
     st.info("👋 Hoş geldiniz! Analiz edilecek veri bekleniyor...")
-    if not current_username:
-        st.warning("Uygulama üzerinden giriş yapmanız gerekiyor.")
+    if not current_username or not current_token:
+        st.warning("⚠️ Güvenlik uyarısı: Uygulama üzerinden güvenli giriş yapmanız gerekiyor.")
     else:
-        st.warning(f"NAME {current_username} için sunucuda dosya bulunamadı. Lütfen Android'den dosya seçip gönderin.")
+        st.warning(f"{current_username} için dosya bulunamadı veya erişim yetkiniz yok.")

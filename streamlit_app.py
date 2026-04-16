@@ -85,26 +85,19 @@ elif isinstance(data_result, pd.DataFrame):
 
     with tab1:
         st.subheader("🌐 Ağ Etkileşim Haritası")
-        
-        # 1. Ağı oluştur (Yükseklik ve genişlik ayarlarıyla)
         net = Network(height="550px", width="100%", bgcolor="#ffffff", font_color="black")
         
-        # 2. NetworkX grafiğini (G) Pyvis'e aktar
+        # G'den veriyi al (set_cdn_resources satırı TAMAMEN SİLİNDİ)
         net.from_nx(G)
-        
-        # 3. FİZİK AYARI: Android'de kasmaması için fiziği başta kapatalım
         net.toggle_physics(False) 
 
-        # 4. GÖRÜNTÜLEME: HTML bileşenini güvenli bir şekilde oluştur
         try:
-            # Not: CDN ayarını manuel yapmak yerine, generate_html() kendi halleder.
-            # Eğer yine kararırsa, 'scrolling=True' Android WebView için can kurtarır.
             html_data = net.generate_html()
-            components.html(html_data, height=600, scrolling=True)
-            
-            st.info("💡 Not: Harita donuksa, Android ekranını bir kez kaydırın veya sayfayı yenileyin.")
+            # YENİ YÖNTEM: st.components.v1.html yerine st.iframe (Android için daha stabil)
+            st.logo("🌐") # Opsiyonel: Şık dursun diye
+            st.iframe(html_data, height=600, scrolling=True)
         except Exception as e:
-            st.error(f"Harita yüklenirken bir hata oluştu: {e}")
+            st.error(f"Harita yüklenemedi: {e}")
 
     with tab2:
         st.subheader("🤖 Yapay Zeka (KNN) ve Analitik Raporlama")
@@ -122,7 +115,7 @@ elif isinstance(data_result, pd.DataFrame):
             except Exception as e:
                 st.error(f"YZ Analizi yapılamadı: {e}")
         
-        st.dataframe(metrics_df, use_container_width=True)
+         st.dataframe(metrics_df, width="stretch") 
         st.divider()
         
         # --- İNDİRME BÖLÜMÜ (TEK SEFER) ---

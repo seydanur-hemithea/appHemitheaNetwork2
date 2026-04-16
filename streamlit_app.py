@@ -83,38 +83,36 @@ elif isinstance(data_result, pd.DataFrame):
 
     with tab1:
         st.subheader("🌐 Ağ Etkileşim Haritası")
-        use_ai = st.checkbox("🤖 KNN Sınıflandırmasını Uygula", key="ai_check")
+        
+        # 1. Checkbox (Seçim kutun yerinde kalsın)
+        use_ai = st.checkbox("🤖 KNN Sınıflandırmasını Uygula", key="ai_check_final")
+        
+        # 2. Grafik Nesnesini Hazırla
         net = Network(height="550px", width="100%", bgcolor="#ffffff", font_color="black")
         
         if use_ai and len(metrics_df) > 3:
-            X = metrics_df[['degree', 'betweenness']].values
-            y = (metrics_df['betweenness'] > metrics_df['betweenness'].mean()).astype(int)
-            scaler = StandardScaler()
-            X_scaled = scaler.fit_transform(X)
-            knn = KNeighborsClassifier(n_neighbors=min(3, len(X)-1))
-            knn.fit(X_scaled, y)
-            metrics_df['AI_Role'] = knn.predict(X_scaled)
-            
+            # KNN renklendirme mantığını buraya dahil ediyoruz
             for _, row in metrics_df.iterrows():
                 role_color = "#e74c3c" if row.get('AI_Role') == 1 else "#3498db"
                 net.add_node(row['node'], label=str(row['node']), color=role_color)
-            
-            # Kenarları ekle
             for edge in G.edges():
                 net.add_edge(edge[0], edge[1])
         else:
             net.from_nx(G)
         
         net.toggle_physics(True)
-        # GÜNCELLEME: components.html yerine st.iframe (Kararmayı önler ve 2026 uyumludur)
+        
+        # --- KRİTİK DEĞİŞİKLİK: DOSYA KAYDETMEDEN BASIYORUZ ---
         try:
-            html_data = net.generate_html()
-            # st.iframe yerine daha stabil olan bileşene dönüyoruz
+            # HTML içeriğini metin (string) olarak belleğe alıyoruz
+            html_content = net.generate_html()
             
-            components.html(html_data, height=600, scrolling=True)
+            # Bu fonksiyon dosyaya bakmaz, doğrudan HTML kodunu çalıştırır
+            
+            components.html(html_content, height=600, scrolling=True)
+            
         except Exception as e:
-            st.error(f"Grafik yüklenirken bir sorun oluştu: {e}")
-
+            st.error(f"Grafik yükleme hatası: {e}")
     with tab2:
         st.subheader("🤖 Yapay Zeka (KNN) Raporu")
         if len(metrics_df) > 3:

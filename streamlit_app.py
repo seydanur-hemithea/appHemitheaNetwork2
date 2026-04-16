@@ -6,23 +6,23 @@ import streamlit.components.v1 as components
 import requests
 from io import StringIO
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.preprocessing import StandardScaler # YZ için kritik
 
 # --- 1. OTURUM HAFIZASI (SESSION STATE) ---
-# Sayfa her yenilendiğinde parametrelerin kaybolmasını engeller
-if 'username' not in st.session_state:
-    params = st.query_params
+# Eğer boşsa veya yeni parametre geldiyse güncelle
+params = st.query_params
+if "username" not in st.session_state or (params.get("username") and params.get("username") != st.session_state.username):
     st.session_state.username = params.get("username")
     st.session_state.token = params.get("token")
 
 # --- 2. GÜVENLİ VERİ ÇEKME ---
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=3) # TTL'i 3 saniye yaptık (Hızlı güncelleme için)
 def load_dynamic_data(uname, token):
     if not uname or not token:
         return None
     try:
         target_url = f"https://apphemitheanetwork.onrender.com/uploads/{uname}/network_data.csv?token={token}"
-        # Akış hatasını önlemek için stream=True kullanabiliriz
-        response = requests.get(target_url, timeout=10)
+        response = requests.get(target_url, timeout=12)
         if response.status_code == 200:
             df = pd.read_csv(StringIO(response.text))
             return df if not df.empty else "EMPTY"
@@ -33,20 +33,18 @@ def load_dynamic_data(uname, token):
 # --- 3. ANA AKIŞ ---
 st.title("🌐 Hemithea Network Analytics")
 
-# Parametreler session_state'den okunur (Kararmayı önleyen kritik nokta)
 uname = st.session_state.username
 token = st.session_state.token
 
 if not uname or not token:
-    st.warning("🔑 Giriş bilgileri bekleniyor... Eğer uygulama içinden açtıysanız lütfen bekleyin.")
-    # Debug için (sadece sen gör): st.write(f"Parametreler: {st.query_params}")
+    st.warning("🔑 Giriş bilgileri bekleniyor... Android üzerinden tekrar giriş yapmayı deneyin.")
 else:
     data_result = load_dynamic_data(uname, token)
     
     if isinstance(data_result, pd.DataFrame):
-        st.success(f"✅ Oturum Açıldı: {uname}")
+        st.success(f"✅ Oturum Aktif: {uname}")
         
-        # Grafik ve Metrik Hazırlığı
+        # 4. ANALİZ MOTORU
         G = nx.from_pandas_edgelist(data_result, source=data_result.columns[0], target=data_result.columns[1])
         degree_cent = nx.degree_centrality(G)
         betweenness = nx.betweenness_centrality(G)
@@ -60,40 +58,46 @@ else:
         tab1, tab2 = st.tabs(["🕸️ Analiz Haritası", "📊 YZ Metrikleri"])
 
         with tab1:
-            # KNN Renklendirme
-            use_ai = st.checkbox("🤖 YZ (KNN) ile Analiz Et")
-            net = Network(height="500px", width="100%", bgcolor="#ffffff")
+            use_ai = st.checkbox("🤖 KNN Sınıflandırmasını Uygula")
+            net = Network(height="550px", width="100%", bgcolor="#ffffff")
             
             if use_ai and len(metrics_df) > 3:
+                # --- YZ STANDARTLARINA UYGUN KNN ---
                 X = metrics_df[['degree', 'betweenness']].values
                 y = (metrics_df['betweenness'] > metrics_df['betweenness'].mean()).astype(int)
-                knn = KNeighborsClassifier(n_neighbors=min(3, len(X)-1))
-                knn.fit(X, y)
-                metrics_df['AI_Role'] = knn.predict(X)
                 
+                # Veriyi ölçeklendir (Scale)
+                scaler = StandardScaler()
+                X_scaled = scaler.fit_transform(X)
+                
+                knn = KNeighborsClassifier(n_neighbors=min(3, len(X)-1))
+                knn.fit(X_scaled, y)
+                metrics_df['AI_Role'] = knn.predict(X_scaled)
+                
+                # Renklendirilmiş Düğümler
                 for _, row in metrics_df.iterrows():
-                    c = "red" if row['AI_Role'] == 1 else "skyblue"
-                    net.add_node(row['node'], label=row['node'], color=c)
-                net.from_nx(G)
+                    color = "#e74c3c" if row['AI_Role'] == 1 else "#3498db" # Kırmızı vs Mavi
+                    title = f"Rol: {'Stratejik' if row['AI_Role'] == 1 else 'Normal'}"
+                    net.add_node(row['node'], label=row['node'], color=color, title=title)
+                
+                # Kenarları ekle (Bağlantıların kaybolmaması için)
+                for edge in G.edges():
+                    net.add_edge(edge[0], edge[1])
             else:
                 net.from_nx(G)
             
             net.toggle_physics(True)
-            components.html(net.generate_html(), height=550)
+            components.html(net.generate_html(), height=600)
 
         with tab2:
+            st.subheader("🤖 KNN Tahmin Sonuçları")
             st.dataframe(metrics_df, use_container_width=True)
+            
+            # İndirme Butonu
+            csv = metrics_df.to_csv(index=False).encode('utf-8-sig')
+            st.download_button("📄 Analiz Sonuçlarını İndir", csv, "hemithea_ai_report.csv", "text/csv")
 
     elif data_result == "NOT_FOUND":
-        st.info("🔍 Veri bekleniyor... Lütfen uygulamadan dosya yükleyin.")
+        st.info("🔍 Analiz edilecek veri henüz yüklenmedi.")
     else:
-        st.error("📡 Bağlantı hatası veya dosya henüz hazır değil.")
-        with tab3:
-            st.dataframe(data_result, use_container_width=True)
-
-    elif data_result == "EMPTY":
-        st.info("📂 Dosya boş.")
-    elif data_result == "NOT_FOUND":
-        st.info("🔍 Veri yüklenmesi bekleniyor...")
-    elif isinstance(data_result, str) and "ERROR" in data_result:
-        st.error(f"📡 Bağlantı hatası: {data_result}")
+        st.error("📡 Sunucu bağlantısında bir sorun var.")

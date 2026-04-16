@@ -44,24 +44,57 @@ if data is not None:
     G = nx.from_pandas_edgelist(data, source=src, target=tgt)
 
     with tab1:
-        st.subheader("Etkileşimli Ağ Haritası")
-        net = Network(height="500px", width="100%", bgcolor="#ffffff", font_color="black")
-        net.from_nx(G)
-        components.html(net.generate_html(), height=550)
+        st.subheader("🤖 YZ Sınıflandırmalı Ağ Haritası (KNN)")
         
-        st.divider()
-        # KARARMA ÖNLEYİCİ: Çizimi butona bağladık
-        if st.button("📸 Statik Grafik Oluştur"):
-            with st.spinner("YZ görselleştirme hazırlanıyor..."):
-                plt.clf()
-                fig, ax = plt.subplots(figsize=(8, 6))
-                pos = nx.spring_layout(G)
-                nx.draw(G, pos, ax=ax, with_labels=True, node_color='skyblue', node_size=500, width=0.7, font_size=7)
-                buf = BytesIO()
-                plt.savefig(buf, format="png", dpi=100)
-                buf.seek(0)
-                st.download_button("📥 PNG İndir", buf, "graph.png", "image/png")
-                plt.close(fig)
+        # 1. Feature Engineering (Metrikler)
+        degree_cent = nx.degree_centrality(G)
+        betweenness = nx.betweenness_centrality(G)
+        metrics_df = pd.DataFrame({
+            'node': list(degree_cent.keys()),
+            'degree': list(degree_cent.values()),
+            'betweenness': list(betweenness.values())
+        })
+
+        # 2. KNN ve Sınıflandırma
+        # Sadece yeterli veri varsa ve kullanıcı istiyorsa çalıştır
+        X = metrics_df[['degree', 'betweenness']].values
+        if len(X) > 3:
+            # KNN Eğit (Basit Sınıflandırma: Betweenness Ortalamasının üstü 'Stratejik')
+            avg_bet = metrics_df['betweenness'].mean()
+            y = (metrics_df['betweenness'] > avg_bet).astype(int)
+            knn = KNeighborsClassifier(n_neighbors=3)
+            # Basit eğitim
+            knn.fit(X, y)
+            metrics_df['AI_Role'] = knn.predict(X)
+            
+            # 3. Görselleştirme (Renk Atama)
+            # KNN Sonucuna göre renkleri belirle
+            color_map = {1: "red", 0: "skyblue"} # 1: Stratejik, 0: Normal
+            
+            # Pyvis Network oluştur
+            net = Network(height="600px", width="100%", bgcolor="#ffffff", font_color="black")
+            
+            # Düğümleri tek tek özellikleriyle ekle
+            for _, row in metrics_df.iterrows():
+                node_label = row['node']
+                node_color = color_map[row['AI_Role']]
+                node_title = f"Rol: {'Stratejik' if row['AI_Role'] == 1 else 'Normal'}"
+                
+                # Pyvis'e düğümü renk ve başlık (hover) ile ekle
+                net.add_node(node_label, label=node_label, color=node_color, title=node_title, size=20)
+            
+            # Kenarları ekle
+            net.from_nx(G)
+            net.toggle_physics(True)
+            components.html(net.generate_html(), height=650)
+            st.info("🎨 Düğümler KNN sonuçlarına göre renklendirildi (Kırmızı: Stratejik Köprü, Mavi: Normal).")
+            
+        else:
+            st.warning("YZ Analizi için veri yetersiz. Standart grafik gösteriliyor.")
+            net = Network(height="600px", width="100%", bgcolor="#ffffff", font_color="black")
+            net.from_nx(G)
+            components.html(net.generate_html(), height=650)
+       
 
     with tab2:
         st.subheader("🤖 KNN Gruplandırma ve Metrik Analizi")

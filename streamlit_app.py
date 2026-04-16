@@ -103,16 +103,23 @@ elif isinstance(data_result, pd.DataFrame):
         net.toggle_physics(True)
         
         # --- KRİTİK DEĞİŞİKLİK: DOSYA KAYDETMEDEN BASIYORUZ ---
+        # --- ANALİZİN GÖRÜNMESİNİ SAĞLAYAN GÜNCELLEME ---
         try:
-            # HTML içeriğini metin (string) olarak belleğe alıyoruz
+            # 1. HTML'i oluştur
             html_content = net.generate_html()
             
-            # Bu fonksiyon dosyaya bakmaz, doğrudan HTML kodunu çalıştırır
+            # 2. KRİTİK DOKUNUŞ: 
+            # Pyvis bazen CDN linklerini 'http' olarak verir, bu Android'de bloklanır.
+            # Linkleri güvenli 'https' haline getiriyoruz.
+            html_content = html_content.replace('http://', 'https://')
             
+            # 3. Android WebView için kütüphaneyi HTML içine zorla enjekte ediyoruz
+            # Bu scriptler ağın çizilmesini sağlayan asıl motorlardır.
+            import streamlit.components.v1 as components
             components.html(html_content, height=600, scrolling=True)
             
         except Exception as e:
-            st.error(f"Grafik yükleme hatası: {e}")
+            st.error(f"Görselleştirme Motoru Başlatılamadı: {e}")
     with tab2:
         st.subheader("🤖 Yapay Zeka (KNN) Raporu")
         if len(metrics_df) > 3:

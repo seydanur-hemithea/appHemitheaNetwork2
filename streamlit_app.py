@@ -6,6 +6,8 @@ import streamlit.components.v1 as components
 import requests
 from io import StringIO
 import matplotlib.pyplot as plt 
+import matplotlib
+matplotlib.use('Agg')
 
 # 1. Sayfa Ayarları
 st.set_page_config(page_title="Hemithea Analiz", layout="wide")
@@ -84,7 +86,7 @@ if data is not None:
 
     G = nx.from_pandas_edgelist(data, source=src, target=tgt)
 
-    with tab1:
+   with tab1:
         st.subheader("Etkileşimli Ağ Haritası")
         net = Network(height="600px", width="100%", bgcolor="#ffffff", font_color="black")
         net.from_nx(G)
@@ -92,26 +94,28 @@ if data is not None:
         html_content = net.generate_html()
         components.html(html_content, height=650)
 
-        # --- PNG İNDİRME ÖZELLİĞİ ---
+        # --- PNG İNDİRME ÖZELLİĞİ (GÜVENLİ VERSİYON) ---
         st.divider()
-        st.write("📸 Ağ Görüntüsünü Kaydet")
-        
-        # Statik bir kopya oluştur (İndirme için)
-        fig, ax = plt.subplots(figsize=(10, 7))
-        pos = nx.spring_layout(G)
-        nx.draw(G, pos, ax=ax, with_labels=True, node_color='skyblue', edge_color='gray', node_size=800, font_size=10)
-        
-        buf = BytesIO()
-        fig.savefig(buf, format="png", dpi=300)
-        buf.seek(0)
-        
-        st.download_button(
-            label="Ağ Grafiğini PNG Olarak İndir",
-            data=buf,
-            file_name=f"hemithea_graph_{current_username}.png",
-            mime="image/png"
-        )
-        plt.close(fig) # Belleği temizle
+        try:
+            # Arka planda sessizce çizim yap
+            fig, ax = plt.subplots(figsize=(10, 7))
+            pos = nx.spring_layout(G)
+            nx.draw(G, pos, ax=ax, with_labels=True, node_color='skyblue', edge_color='gray', node_size=800, font_size=10)
+            
+            buf = BytesIO()
+            fig.savefig(buf, format="png", dpi=150) # Hız için dpi'yi biraz düşürdük
+            buf.seek(0)
+            
+            st.download_button(
+                label="📸 Ağ Grafiğini PNG Olarak İndir",
+                data=buf,
+                file_name=f"hemithea_graph_{current_username}.png",
+                mime="image/png"
+            )
+            plt.close(fig) # Figürü tamamen kapat
+            plt.clf()      # Belleği temizle
+        except Exception as e:
+            st.error(f"Grafik hazırlanamadı: {e}")
 
     with tab2:
         st.subheader("Ağ İstatistikleri")

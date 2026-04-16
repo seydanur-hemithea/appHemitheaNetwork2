@@ -6,4 +6,5 @@ pyvis
 matplotlib
 scikit-learn
 tempfile
-sklearn
+requests
+

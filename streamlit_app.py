@@ -100,7 +100,7 @@ elif isinstance(data_result, pd.DataFrame):
         else:
             net.from_nx(G)
         
-        net.toggle_physics(True)
+        net.toggle_physics(False)
         
         # --- KRİTİK DEĞİŞİKLİK: DOSYA KAYDETMEDEN BASIYORUZ ---
         # --- ANALİZİN GÖRÜNMESİNİ SAĞLAYAN GÜNCELLEME ---

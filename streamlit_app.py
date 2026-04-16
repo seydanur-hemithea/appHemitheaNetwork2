@@ -51,10 +51,10 @@ if not current_user:
 
 data_result = load_dynamic_data(current_user, current_token)
 
-# --- 4. DURUM KONTROLLERİ VE ANALİZ AKIŞI ---
+# --- 4. GÖRSELLEŞTİRME VE ANALİZ AKIŞI ---
 
 if isinstance(data_result, pd.DataFrame):
-    st.success(f"✅ Veri Bağlantısı Tamam: {current_user}")
+    st.success(f"✅ Analiz Hazır: {current_user}")
     
     # 1. ANALİZLER (G ve Metrikler)
     G = nx.from_pandas_edgelist(data_result, source=data_result.columns[0], target=data_result.columns[1])
@@ -67,7 +67,7 @@ if isinstance(data_result, pd.DataFrame):
         'betweenness': list(betweenness.values())
     })
 
-    # 2. KNN MOTORU
+    # 2. KNN ANALİZİ (Grafik Renkleri İçin)
     if len(metrics_df) > 3:
         try:
             X = metrics_df[['degree', 'betweenness']].values
@@ -76,62 +76,48 @@ if isinstance(data_result, pd.DataFrame):
             X_scaled = scaler.fit_transform(X)
             knn = KNeighborsClassifier(n_neighbors=min(3, len(metrics_df)-1))
             knn.fit(X_scaled, y)
-            metrics_df['Rol_Tanimi'] = knn.predict(X_scaled)
-            metrics_df['Durum'] = metrics_df['Rol_Tanimi'].map({1: "🎯 Stratejik", 0: "👤 Normal"})
-        except: pass
+            metrics_df['AI_Kategori'] = knn.predict(X_scaled)
+            metrics_df['color'] = metrics_df['AI_Kategori'].map({1: "#e74c3c", 0: "#3498db"})
+            metrics_df['Durum'] = metrics_df['AI_Kategori'].map({1: "🎯 Stratejik", 0: "👤 Normal"})
+        except:
+            metrics_df['color'] = "#3498db"
+            metrics_df['Durum'] = "Analiz Edildi"
 
-    # 3. GÖRSELLEŞTİRME (Alt Alta, En Hafif Mod)
-    st.subheader("📊 Analitik Sonuçlar")
+    # 3. GRAFİK ÇİZİMİ (İşte Burası Önemli!)
+    st.subheader("🌐 İnteraktif Ağ Haritası")
+    
+    try:
+        # Notebook=False ayarı Android WebView için daha stabildir
+        net = Network(height="500px", width="100%", bgcolor="#ffffff", font_color="black")
+        
+        # Düğümleri KNN renkleriyle ekle
+        for _, row in metrics_df.iterrows():
+            node_color = row['color'] if 'color' in row else "#3498db"
+            net.add_node(row['node'], label=str(row['node']), color=node_color)
+        
+        # Kenarları ekle
+        for edge in G.edges():
+            net.add_edge(edge[0], edge[1])
+
+        net.toggle_physics(True) # Hareketli olmasını sağlar
+        
+        # KRİTİK: generate_html() içeriğini Android'in anlayacağı en saf haliyle gönderiyoruz
+        html_data = net.generate_html()
+        
+        # Eski components.html yerine daha güvenli kapsayıcı
+        st.components.v1.html(html_data, height=550, scrolling=False)
+        
+    except Exception as e:
+        st.error(f"Grafik çizilirken hata: {e}")
+
+    # 4. TABLO VE İNDİRME
+    st.divider()
     st.dataframe(metrics_df[['node', 'degree', 'betweenness', 'Durum']], width="stretch")
     
-    st.divider()
-    
-    # --- İNDİRME BÖLÜMÜ (Kolon Hataları Düzeltildi) ---
-    st.write("📂 **Analiz Çıktılarını İndir**")
-    
-    # İlk Satır Kolonlar: CSV ve HTML
+    # İndirme butonları
     c1, c2 = st.columns(2)
     with c1:
         csv_data = metrics_df.to_csv(index=False).encode('utf-8-sig')
-        st.download_button("📄 Veri Raporu (CSV)", csv_data, f"analiz_{current_user}.csv")
+        st.download_button("📄 CSV Raporu", csv_data, f"rapor_{current_user}.csv")
     with c2:
-        try:
-            net_dl = Network(height="600px", width="100%")
-            net_dl.from_nx(G)
-            temp_path = os.path.join(tempfile.gettempdir(), f"map_{current_user}.html")
-            net_dl.save_graph(temp_path)
-            with open(temp_path, 'r', encoding='utf-8') as f:
-                html_string = f.read()
-            st.download_button("🌐 İnteraktif Harita (HTML)", html_string, "harita.html", "text/html")
-        except: st.write("Dosya Hazırlanıyor...")
-
-    # İkinci Satır Kolonlar: Resimler (C3 Sorunu Buradaydı!)
-    st.write("📸 **Görsel Kayıtlar (PNG)**")
-    c3, c4 = st.columns(2) # C3 ve C4 burada tanımlandı!
-    
-    with c3:
-        try:
-            plt.clf()
-            fig_tbl, ax_tbl = plt.subplots(figsize=(8, 5))
-            ax_tbl.axis('off')
-            ax_tbl.table(cellText=metrics_df.head(10).values, colLabels=metrics_df.columns, loc='center')
-            buf_tbl = BytesIO()
-            plt.savefig(buf_tbl, format="png")
-            st.download_button("🖼️ Tablo Resmi", buf_tbl.getvalue(), "tablo.png")
-            plt.close(fig_tbl)
-        except: st.write("PNG Hazırlanıyor...")
-        
-    with c4:
-        try:
-            plt.clf()
-            fig_gr, ax_gr = plt.subplots(figsize=(8, 5))
-            nx.draw(G, with_labels=True, node_color='#3498db', node_size=300, font_size=6)
-            buf_gr = BytesIO()
-            plt.savefig(buf_gr, format="png")
-            st.download_button("📸 Ağ Resmi", buf_gr.getvalue(), "ag.png")
-            plt.close(fig_gr)
-        except: st.write("PNG Hazırlanıyor...")
-
-elif isinstance(data_result, str):
-    st.warning(f"Bağlantı Durumu: {data_result}")
-    if st.button("🔄 Tekrar Dene"): st.rerun()
+        st.info("💡 Grafiği yukarıdan inceleyebilirsiniz.")

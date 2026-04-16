@@ -79,7 +79,7 @@ elif isinstance(data_result, pd.DataFrame):
     
     # Analizler ve Tablar buradan başlasın...
 
-   tab1, tab2 = st.tabs(["🕸️ Analiz Haritası", "📊 YZ Metrikleri"])
+    tab1, tab2 = st.tabs(["🕸️ Analiz Haritası", "📊 YZ Metrikleri"])
 
     with tab1:
         st.subheader("🌐 Ağ Etkileşim Haritası")

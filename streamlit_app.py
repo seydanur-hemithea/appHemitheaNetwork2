@@ -67,7 +67,7 @@ if data is not None:
                 plt.clf()
                 fig, ax = plt.subplots(figsize=(10, 7))
                 pos = nx.spring_layout(G)
-                nx.draw(G, pos, ax=ax, with_labels=True, node_color='skyblue', edge_size=800)
+                nx.draw(G, pos, ax=ax, with_labels=True, node_color='skyblue', width=1.0)
                 
                 buf = BytesIO()
                 plt.savefig(buf, format="png")
@@ -85,8 +85,14 @@ if data is not None:
         }).sort_values(by='Skor', ascending=False)
         
         st.dataframe(metrics_df, use_container_width=True)
-        csv = metrics_df.to_csv(index=False).encode('utf-8')
-        st.download_button("📄 Tabloyu İndir (CSV)", csv, "metrics.csv", "text/csv")
+       csv_data = metrics_df.to_csv(index=False).encode('utf-8-sig') # 'utf-8-sig' Excel uyumluluğu sağlar
+
+st.download_button(
+    label="📄 Metrikleri Tablo (CSV) Olarak İndir",
+    data=csv_data,
+    file_name=f"hemithea_metrics.csv",
+    mime="text/csv"
+)
 
     with tab3:
         st.dataframe(data, use_container_width=True)

@@ -55,32 +55,39 @@ def load_dynamic_data(uname, token):
 st.set_page_config(page_title="Hemithea Network", layout="wide")
 st.title("🌐 Hemithea Network Analytics")
 
-# SIDEBAR: Giriş ve Kontrol
 with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/2103/2103633.png", width=100) # Şirin bir ikon
-    st.subheader("🛠️ Kontrol Paneli")
-    
+    st.image("https://cdn-icons-png.flaticon.com/512/2103/2103633.png", width=80)
+    st.subheader("🛡️ Hemithea Erişim")
+
     if not st.session_state.username:
-        if st.button("🚀 Kendi Verini Analiz Et (Giriş Yap)"):
+        # Ana butonu belirgin yapalım
+        if st.button("🚀 Kendi Verini Analiz Et"):
             st.session_state.login_mode = True
-        
+
         if st.session_state.login_mode:
             st.divider()
-            u_id = st.text_input("Kullanıcı Kimliği:")
+            st.info("💡 Kayıt işlemleri Hemithea Android uygulaması üzerinden yapılmaktadır.")
+            
+            u_id = st.text_input("Kullanıcı Kimliği (Android ID):")
             u_tk = st.text_input("Erişim Tokenı:", type="password")
-            if st.button("Sistemi Başlat"):
-                st.session_state.username = u_id
-                st.session_state.token = u_tk
-                st.session_state.login_mode = False
-                st.rerun()
-            if st.button("Vitrine Dön"):
-                st.session_state.login_mode = False
-                st.rerun()
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("Giriş Yap"):
+                    st.session_state.username = u_id
+                    st.session_state.token = u_tk
+                    st.session_state.login_mode = False
+                    st.rerun()
+            with col2:
+                if st.button("Vazgeç"):
+                    st.session_state.login_mode = False
+                    st.rerun()
     else:
-        st.success(f"Oturum Açıldı: {st.session_state.username}")
-        if st.button("🚪 Çıkış Yap"):
+        st.success(f"Hoş geldin, {st.session_state.username}!")
+        if st.button("🚪 Oturumu Kapat"):
             st.session_state.username = None
             st.rerun()
+
 
 # VERİ SEÇİMİ
 if not st.session_state.username:

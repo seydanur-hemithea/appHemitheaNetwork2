@@ -86,26 +86,25 @@ elif isinstance(data_result, pd.DataFrame):
     with tab1:
         st.subheader("🌐 Ağ Etkileşim Haritası")
         
-        # Pyvis ağını oluştururken CDN kullanımını zorunlu tutuyoruz
+        # 1. Ağı oluştur (Yükseklik ve genişlik ayarlarıyla)
         net = Network(height="550px", width="100%", bgcolor="#ffffff", font_color="black")
         
-        # ... (if-else blokların burada kalabilir) ...
-        
-        # KRİTİK AYAR: Android WebView için kaynakları CDN'den çek
-        net.set_cdn_resources(True) 
-        
-        # Standart ağ ekleme işlemi
+        # 2. NetworkX grafiğini (G) Pyvis'e aktar
         net.from_nx(G)
-        net.toggle_physics(True)
+        
+        # 3. FİZİK AYARI: Android'de kasmaması için fiziği başta kapatalım
+        net.toggle_physics(False) 
 
+        # 4. GÖRÜNTÜLEME: HTML bileşenini güvenli bir şekilde oluştur
         try:
-            # HTML oluştururken 'notebook=False' olduğundan emin olalım
-            raw_html = net.generate_html()
+            # Not: CDN ayarını manuel yapmak yerine, generate_html() kendi halleder.
+            # Eğer yine kararırsa, 'scrolling=True' Android WebView için can kurtarır.
+            html_data = net.generate_html()
+            components.html(html_data, height=600, scrolling=True)
             
-            # iframe'in Android'de çökmesini engellemek için scrolling ekliyoruz
-            components.html(raw_html, height=600, scrolling=True)
+            st.info("💡 Not: Harita donuksa, Android ekranını bir kez kaydırın veya sayfayı yenileyin.")
         except Exception as e:
-            st.error(f"Görselleştirme hatası: {e}")
+            st.error(f"Harita yüklenirken bir hata oluştu: {e}")
 
     with tab2:
         st.subheader("🤖 Yapay Zeka (KNN) ve Analitik Raporlama")

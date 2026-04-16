@@ -79,31 +79,45 @@ elif isinstance(data_result, pd.DataFrame):
     
     # Analizler ve Tablar buradan başlasın...
 
-    tab1, tab2 = st.tabs(["🕸️ Analiz Haritası", "📊 YZ Metrikleri"])
+   tab1, tab2 = st.tabs(["🕸️ Analiz Haritası", "📊 YZ Metrikleri"])
 
     with tab1:
+        st.subheader("🌐 Ağ Etkileşim Haritası")
+        
+        # 1. ANALİZ MOTORUNU BURADA ÇALIŞTIR (G'nin her zaman tanımlı olması için)
+        G = nx.from_pandas_edgelist(data_result, source=data_result.columns[0], target=data_result.columns[1])
+        
         use_ai = st.checkbox("🤖 KNN Sınıflandırmasını Uygula")
-        net = Network(height="500px", width="100%", bgcolor="#ffffff")
+        
+        # 2. PYVIS AĞINI OLUŞTUR
+        net = Network(height="550px", width="100%", bgcolor="#ffffff", font_color="black")
         
         if use_ai and len(metrics_df) > 3:
-            X = metrics_df[['degree', 'betweenness']].values
-            y = (metrics_df['betweenness'] > metrics_df['betweenness'].mean()).astype(int)
-            scaler = StandardScaler()
-            X_scaled = scaler.fit_transform(X)
-            knn = KNeighborsClassifier(n_neighbors=min(3, len(X)-1))
-            knn.fit(X_scaled, y)
-            metrics_df['AI_Role'] = knn.predict(X_scaled)
-            
+            # KNN Renklendirmesi
             for _, row in metrics_df.iterrows():
-                color = "#e74c3c" if row['AI_Role'] == 1 else "#3498db"
-                net.add_node(row['node'], label=row['node'], color=color)
-            net.from_nx(G)
+                # Eğer AI_Role sütunu henüz yoksa hata vermemesi için kontrol
+                role_color = "#e74c3c" if row.get('AI_Role', 0) == 1 else "#3498db"
+                net.add_node(row['node'], label=str(row['node']), color=role_color)
+            
+            # Kenarları (Bağlantıları) ekle
+            for source, target in G.edges():
+                net.add_edge(source, target)
         else:
+            # Standart Ağ Gösterimi
             net.from_nx(G)
         
+        # 3. GÖRSEL AYARLAR VE GÖSTERİM
         net.toggle_physics(True)
-        components.html(net.generate_html(), height=550)
-
+        net.set_options("""
+        var options = { "physics": { "forceAtlas2Based": { "gravitationalConstant": -50 } } }
+        """)
+        
+        # HTML olarak ekrana bas
+        try:
+            html_data = net.generate_html()
+            components.html(html_data, height=600)
+        except:
+            st.error("Ağ haritası oluşturulurken bir teknik sorun oluştu.")
     with tab2:
         st.subheader("🤖 Yapay Zeka (KNN) ve Analitik Raporlama")
         

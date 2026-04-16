@@ -55,15 +55,32 @@ if not current_user:
 data_result = load_dynamic_data(current_user, current_token)
 
 # --- 4. DURUM KONTROLLERİ ---
-if data_result == "CONNECTION_ERROR":
-    st.error("📡 Sunucu uyanıyor... Lütfen bağlantınızı kontrol edin ve 10 saniye bekleyip tekrar deneyin.")
-    if st.button("Tekrar Bağlan"):
-        st.rerun()
-    st.stop()
+if isinstance(data_result, str):
+    if data_result == "CONNECTION_ERROR":
+        st.error("📡 Sunucu uyanıyor... Lütfen 10 saniye bekleyip tekrar deneyiniz.")
+        if st.button("Tekrar Bağlan"):
+            st.rerun()
+        st.stop()
 
+elif data_result == "NOT_FOUND":
+        st.info(f"🔍 Hoş geldin {current_user}! Henüz analiz edilecek bir verin yüklü değil.")
+        with st.expander("❓ Verimi Nasıl Yüklerim?", expanded=True):
+            st.markdown("1. Uygulamadan veri yükleme ekranına git.\n2. CSV dosyanı seç.\n3. Yükleme bitince bu sayfayı yenile.")
+        if st.button("🔄 Veriyi Şimdi Kontrol Et"):
+            st.rerun()
+        st.stop()
+
+    elif data_result == "EMPTY":
+        st.warning("⚠️ Dosya bulundu ancak içeriği boş!")
+        st.stop()
+
+    else:
+        st.error("📡 Sunucu ile bağlantı kurulamıyor.")
+        st.stop()
+
+# 2. Eğer yukarıdaki 'str' engellerine takılmadıysa, bu bir DataFrame'dir
 elif isinstance(data_result, pd.DataFrame):
     st.success(f"✅ Hoş geldin {current_user}")
-
 
     tab1, tab2 = st.tabs(["🕸️ Analiz Haritası", "📊 YZ Metrikleri"])
 

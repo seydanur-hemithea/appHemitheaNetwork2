@@ -6,135 +6,102 @@ import streamlit.components.v1 as components
 import requests
 from io import StringIO, BytesIO
 import matplotlib
-# KRİTİK: Render üzerinde hata almamak için Agg backend kullanıyoruz
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt 
+# YZ kütüphanelerini ekleyelim
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.preprocessing import StandardScaler
 
 # 1. Sayfa Ayarları
 st.set_page_config(page_title="Hemithea Analiz", layout="wide")
-
-# Mobil CSS
-st.markdown("""
-    <style>
-    .main > div { padding: 0.5rem; }
-    iframe { width: 100% !important; }
-    </style>
-    """, unsafe_allow_html=True)
 
 BASE_RENDER_URL = "https://apphemitheanetwork.onrender.com/uploads"
 
 @st.cache_data(ttl=2)
 def load_dynamic_data(uname, token):
-    if not uname or not token:
-        return None
+    if not uname or not token: return None
     try:
         target_url = f"{BASE_RENDER_URL}/{uname}/network_data.csv?token={token}"
         response = requests.get(target_url, timeout=5)
         if response.status_code == 200:
             return pd.read_csv(StringIO(response.text))
         return None
-    except:
-        return None
+    except: return None
 
 # --- ANA AKIŞ ---
 st.title("🌐 Hemithea Network Analytics")
 
-# Streamlit'in yeni versiyonları için query_params kullanımı
 current_username = st.query_params.get("username")
 current_token = st.query_params.get("token")
 
 data = load_dynamic_data(current_username, current_token)
 
 if data is not None:
-    cols = data.columns.tolist()
-    src, tgt = cols[0], cols[1]
-    st.success(f"✅ Analiz Hazır!")
+    src, tgt = data.columns[0], data.columns[1]
+    st.success(f"✅ Veri Bağlantısı Kuruldu")
     
-    tab1, tab2, tab3 = st.tabs(["🕸️ Ağ Haritası", "📈 Metrikler", "📄 Veri"])
+    tab1, tab2, tab3 = st.tabs(["🕸️ Ağ Haritası", "🤖 Yapay Zeka Analizi", "📄 Veri"])
     G = nx.from_pandas_edgelist(data, source=src, target=tgt)
 
     with tab1:
         st.subheader("Etkileşimli Ağ Haritası")
-        net = Network(height="600px", width="100%", bgcolor="#ffffff", font_color="black")
+        net = Network(height="500px", width="100%", bgcolor="#ffffff", font_color="black")
         net.from_nx(G)
-        net.toggle_physics(True)
-        components.html(net.generate_html(), height=650)
-
-        st.divider()
-        st.write("📸 Statik Ağ Görüntüsü Hazırla")
+        components.html(net.generate_html(), height=550)
         
-        # --- GÜVENLİ FOTOĞRAF OLUŞTURMA ---
-        # Butona basınca değil, sayfa yüklendiğinde hazırlayıp butona veriyoruz ki donma yapmasın
-        try:
-            plt.clf()
-            fig, ax = plt.subplots(figsize=(10, 7))
-            pos = nx.spring_layout(G)
-            # Parametreleri garantiye alalım: node_size ve width
-            nx.draw(G, pos, ax=ax, with_labels=True, node_color='skyblue', node_size=800, width=1.0, font_size=8)
-            
-            buf = BytesIO()
-            plt.savefig(buf, format="png", dpi=150)
-            buf.seek(0) # Dosya imlecini başa sar
-            
-            st.download_button(
-                label="📥 PNG Olarak İndir", 
-                data=buf, 
-                file_name=f"hemithea_graph_{current_username}.png", 
-                mime="image/png"
-            )
-            plt.close(fig)
-        except Exception as e:
-            st.error(f"Grafik hazırlama hatası: {e}")
+        st.divider()
+        # KARARMA ÖNLEYİCİ: Çizimi butona bağladık
+        if st.button("📸 Statik Grafik Oluştur"):
+            with st.spinner("YZ görselleştirme hazırlanıyor..."):
+                plt.clf()
+                fig, ax = plt.subplots(figsize=(8, 6))
+                pos = nx.spring_layout(G)
+                nx.draw(G, pos, ax=ax, with_labels=True, node_color='skyblue', node_size=500, width=0.7, font_size=7)
+                buf = BytesIO()
+                plt.savefig(buf, format="png", dpi=100)
+                buf.seek(0)
+                st.download_button("📥 PNG İndir", buf, "graph.png", "image/png")
+                plt.close(fig)
 
     with tab2:
+        st.subheader("🤖 KNN Gruplandırma ve Metrik Analizi")
         
-        st.subheader("📈 Ağ İstatistikleri ve Makine Öğrenmesi")
-        
-        # Mevcut metrikleri hesapla
+        # Temel Metrikler
         degree_cent = nx.degree_centrality(G)
         betweenness = nx.betweenness_centrality(G)
         
         metrics_df = pd.DataFrame({
             'Aktör': list(degree_cent.keys()),
-            'Bağlantı Skoru': list(degree_cent.values()),
-            'Stratejik Rol': list(betweenness.values())
+            'Baglanti_Skoru': list(degree_cent.values()),
+            'Stratejik_Rol': list(betweenness.values())
         })
 
-        # --- KNN ALGORİTMASI BURADA ---
-        st.divider()
-        st.subheader("🤖 KNN Gruplandırma Analizi")
-        
-        # KNN için basit bir etiketleme (Örn: Skoru 0.5 üstü olanlar 'Popüler')
-        metrics_df['Kategori'] = metrics_df['Bağlantı Skoru'].apply(lambda x: 1 if x > metrics_df['Bağlantı Skoru'].mean() else 0)
-        
-        # Eğitim verisi (Bağlantı Skoru ve Stratejik Rol özelliklerini kullanıyoruz)
-        X = metrics_df[['Bağlantı Skoru', 'Stratejik Rol']].values
-        y = metrics_df['Kategori'].values
-        
-        if len(X) > 5: # Yeterli veri varsa
-            knn = KNeighborsClassifier(n_neighbors=3)
-            knn.fit(X, y)
-            metrics_df['KNN_Tahmin'] = knn.predict(X)
+        # KNN ANALİZİ - Sadece kullanıcı istediğinde çalışır, sistemi yormaz
+        if st.checkbox("Yapay Zekayı Çalıştır (KNN Sınıflandırma)"):
+            # Etiketleme: Ortalamanın üstündekiler 'Kritik' (1), altındakiler 'Normal' (0)
+            avg_score = metrics_df['Baglanti_Skoru'].mean()
+            y = (metrics_df['Baglanti_Skoru'] > avg_score).astype(int)
+            X = metrics_df[['Baglanti_Skoru', 'Stratejik_Rol']].values
             
-            st.info("KNN Algoritması çalıştırıldı: Aktörler benzerliklerine göre sınıflandırıldı.")
-            st.dataframe(metrics_df, use_container_width=True)
-        else:
-            st.warning("KNN analizi için daha fazla veri (satır) gerekiyor.")
-        
+            if len(X) > 3:
+                scaler = StandardScaler()
+                X_scaled = scaler.fit_transform(X)
+                
+                knn = KNeighborsClassifier(n_neighbors=min(3, len(X)-1))
+                knn.fit(X_scaled, y)
+                metrics_df['AI_Kategori'] = knn.predict(X_scaled)
+                metrics_df['AI_Yorum'] = metrics_df['AI_Kategori'].map({1: "Kritik Düğüm", 0: "Uç Nokta"})
+                
+                st.info("KNN Modeli eğitildi ve aktörler sınıflandırıldı.")
+            else:
+                st.warning("YZ için veri yetersiz.")
+
         st.dataframe(metrics_df, use_container_width=True)
         
-        # Excel uyumlu CSV
         csv_data = metrics_df.to_csv(index=False).encode('utf-8-sig')
-
-        st.download_button(
-            label="📄 Metrikleri Tablo (CSV) Olarak İndir",
-            data=csv_data,
-            file_name=f"hemithea_metrics_{current_username}.csv",
-            mime="text/csv"
-        )
+        st.download_button("📄 Sonuçları İndir (CSV)", csv_data, "hemithea_ai_results.csv", "text/csv")
 
     with tab3:
-        st.subheader("Ham Veri")
         st.dataframe(data, use_container_width=True)
 else:
     st.info("👋 Veri bekleniyor...")

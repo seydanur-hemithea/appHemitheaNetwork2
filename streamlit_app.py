@@ -10,6 +10,7 @@ from sklearn.preprocessing import StandardScaler
 import tempfile
 import os
 import streamlit.components.v1 as components
+import plotly.graph_objects as go
 
 # --- 1. OTURUM VE PARAMETRE YÖNETİMİ ---
 if "username" not in st.session_state:
@@ -81,45 +82,83 @@ elif isinstance(data_result, pd.DataFrame):
 
     tab1, tab2 = st.tabs(["🕸️ Analiz Haritası", "📊 YZ Metrikleri"])
 
+    
+
     with tab1:
-        st.subheader("🌐 Ağ Etkileşim Haritası")
+        st.subheader("🌐 Etkileşimli Analiz Paneli")
         
-        # 1. Checkbox (Seçim kutun yerinde kalsın)
-        use_ai = st.checkbox("🤖 KNN Sınıflandırmasını Uygula", key="ai_check_final")
+        # 1. Koordinatları Hesapla (Spring Layout)
+        # Bu, düğümleri dengeli bir şekilde ekrana yayar
+        pos = nx.spring_layout(G, k=0.5, iterations=50)
         
-        # 2. Grafik Nesnesini Hazırla
-        net = Network(height="550px", width="100%", bgcolor="#ffffff", font_color="black")
-        
-        if use_ai and len(metrics_df) > 3:
-            # KNN renklendirme mantığını buraya dahil ediyoruz
-            for _, row in metrics_df.iterrows():
-                role_color = "#e74c3c" if row.get('AI_Role') == 1 else "#3498db"
-                net.add_node(row['node'], label=str(row['node']), color=role_color)
-            for edge in G.edges():
-                net.add_edge(edge[0], edge[1])
-        else:
-            net.from_nx(G)
-        
-        net.toggle_physics(False)
-        
-        # --- KRİTİK DEĞİŞİKLİK: DOSYA KAYDETMEDEN BASIYORUZ ---
-        # --- ANALİZİN GÖRÜNMESİNİ SAĞLAYAN GÜNCELLEME ---
-        try:
-            # 1. HTML'i oluştur
-            html_content = net.generate_html()
+        # 2. Kenarları (Çizgileri) Hazırla
+        edge_x = []
+        edge_y = []
+        for edge in G.edges():
+            x0, y0 = pos[edge[0]]
+            x1, y1 = pos[edge[1]]
+            edge_x.extend([x0, x1, None])
+            edge_y.extend([y0, y1, None])
+    
+        edge_trace = go.Scatter(
+            x=edge_x, y=edge_y,
+            line=dict(width=0.8, color='#888'),
+            hoverinfo='none',
+            mode='lines'
+        )
+    
+        # 3. Düğümleri (Noktaları) Hazırla
+        node_x = []
+        node_y = []
+        node_text = []
+        node_color = []
+        node_size = []
+    
+        for node in G.nodes():
+            x, y = pos[node]
+            node_x.append(x)
+            node_y.append(y)
             
-            # 2. KRİTİK DOKUNUŞ: 
-            # Pyvis bazen CDN linklerini 'http' olarak verir, bu Android'de bloklanır.
-            # Linkleri güvenli 'https' haline getiriyoruz.
-            html_content = html_content.replace('http://', 'https://')
+            # Üzerine gelince çıkacak olan isim ve veriler (Hover)
+            deg = degree_cent.get(node, 0)
+            bet = betweenness.get(node, 0)
+            node_text.append(f"<b>Düğüm:</b> {node}<br><b>Derece:</b> {deg:.2f}<br><b>Arasındalık:</b> {bet:.2f}")
             
-            # 3. Android WebView için kütüphaneyi HTML içine zorla enjekte ediyoruz
-            # Bu scriptler ağın çizilmesini sağlayan asıl motorlardır.
-            
-            components.html(html_content, height=600, scrolling=True)
-            
-        except Exception as e:
-            st.error(f"Görselleştirme Motoru Başlatılamadı: {e}")
+            # Renklendirme ve Boyutlandırma
+            node_color.append(deg) # Dereceye göre renk değişsin
+            node_size.append(20 + (deg * 50)) # Dereceye göre boyut büyüsün
+    
+        node_trace = go.Scatter(
+            x=node_x, y=node_y,
+            mode='markers+text',
+            text=[str(n) for n in G.nodes()], # İsimler her zaman görünsün istiyorsan kalsın
+            textposition="top center",
+            hoverinfo='text',
+            hovertext=node_text, # Üzerine gelince detaylar çıkar
+            marker=dict(
+                showscale=True,
+                colorscale='Viridis', # Şirin ve profesyonel bir renk skalası
+                reversescale=True,
+                color=node_color,
+                size=node_size,
+                colorbar=dict(thickness=15, title='Etki Seviyesi', xanchor='left', titleside='right'),
+                line_width=2)
+        )
+    
+        # 4. Figürü Oluştur
+        fig = go.Figure(data=[edge_trace, node_trace],
+                     layout=go.Layout(
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        showlegend=False,
+                        hovermode='closest',
+                        margin=dict(b=0, l=0, r=0, t=0),
+                        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False)
+                    ))
+    
+        # 5. Ekrana Bas (Android Dostu Komut)
+        st.plotly_chart(fig, use_container_width=True)
     with tab2:
         st.subheader("🤖 Yapay Zeka (KNN) Raporu")
         if len(metrics_df) > 3:

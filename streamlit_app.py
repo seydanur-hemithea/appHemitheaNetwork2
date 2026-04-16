@@ -9,6 +9,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import StandardScaler
 import tempfile
 import os
+import streamlit.components.v1 as components
 
 # --- 1. OTURUM VE PARAMETRE YÖNETİMİ ---
 if "username" not in st.session_state:
@@ -106,7 +107,13 @@ elif isinstance(data_result, pd.DataFrame):
         
         net.toggle_physics(True)
         # GÜNCELLEME: components.html yerine st.iframe (Kararmayı önler ve 2026 uyumludur)
-        st.iframe(srcdoc=net.generate_html(), height=600)
+         try:
+            html_data = net.generate_html()
+            # st.iframe yerine daha stabil olan bileşene dönüyoruz
+            
+            components.html(html_data, height=600, scrolling=True)
+         except Exception as e:
+            st.error(f"Grafik yüklenirken bir sorun oluştu: {e}")
 
     with tab2:
         st.subheader("🤖 Yapay Zeka (KNN) Raporu")

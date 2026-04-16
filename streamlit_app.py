@@ -85,27 +85,27 @@ elif isinstance(data_result, pd.DataFrame):
 
     with tab1:
         st.subheader("🌐 Ağ Etkileşim Haritası")
-        use_ai = st.checkbox("🤖 KNN Sınıflandırmasını Uygula")
+        
+        # Pyvis ağını oluştururken CDN kullanımını zorunlu tutuyoruz
         net = Network(height="550px", width="100%", bgcolor="#ffffff", font_color="black")
         
-        if use_ai and len(metrics_df) > 3:
-            X = metrics_df[['degree', 'betweenness']].values
-            y = (metrics_df['betweenness'] > metrics_df['betweenness'].mean()).astype(int)
-            scaler = StandardScaler()
-            X_scaled = scaler.fit_transform(X)
-            knn = KNeighborsClassifier(n_neighbors=min(3, len(X)-1))
-            knn.fit(X_scaled, y)
-            metrics_df['AI_Role'] = knn.predict(X_scaled)
-            
-            for _, row in metrics_df.iterrows():
-                role_color = "#e74c3c" if row['AI_Role'] == 1 else "#3498db"
-                net.add_node(row['node'], label=str(row['node']), color=role_color)
-            net.from_nx(G)
-        else:
-            net.from_nx(G)
+        # ... (if-else blokların burada kalabilir) ...
         
+        # KRİTİK AYAR: Android WebView için kaynakları CDN'den çek
+        net.set_cdn_resources(True) 
+        
+        # Standart ağ ekleme işlemi
+        net.from_nx(G)
         net.toggle_physics(True)
-        components.html(net.generate_html(), height=600)
+
+        try:
+            # HTML oluştururken 'notebook=False' olduğundan emin olalım
+            raw_html = net.generate_html()
+            
+            # iframe'in Android'de çökmesini engellemek için scrolling ekliyoruz
+            components.html(raw_html, height=600, scrolling=True)
+        except Exception as e:
+            st.error(f"Görselleştirme hatası: {e}")
 
     with tab2:
         st.subheader("🤖 Yapay Zeka (KNN) ve Analitik Raporlama")

@@ -112,7 +112,7 @@ elif isinstance(data_result, pd.DataFrame):
             # st.iframe yerine daha stabil olan bileşene dönüyoruz
             
             components.html(html_data, height=600, scrolling=True)
-         except Exception as e:
+        except Exception as e:
             st.error(f"Grafik yüklenirken bir sorun oluştu: {e}")
 
     with tab2:

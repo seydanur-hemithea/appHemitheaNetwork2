@@ -86,11 +86,14 @@ if isinstance(data_result, pd.DataFrame):
     st.subheader("📊 Analitik Raporlama")
     st.dataframe(metrics_df[['node', 'degree', 'betweenness', 'Durum']], width="stretch")
 
-    # --- 📂 İNDİRME BÖLÜMÜ (Hatasız c1-c4 Yapısı) ---
+    # --- 📂 İNDİRME BÖLÜMÜ (Hatalı kısım burasıydı) ---
     st.write("📂 **Analiz Çıktılarını İndir**")
     
-    # 1. Satır: CSV ve Bilgi
     col1, col2 = st.columns(2)
     with col1:
         csv_data = metrics_df.to_csv(index=False).encode('utf-8-sig')
-        st.download_button("📄 Veri Raporu (CSV)", csv_data, f"analiz
+        # Tırnağı ve parantezi tam olarak böyle kapatmalısın:
+        st.download_button("📄 Veri Raporu (CSV)", csv_data, f"analiz_{current_user}.csv", "text/csv")
+        
+    with col2:
+        st.info("💡 Görsel kayıtlar aşağıda hazırlanmıştır.")

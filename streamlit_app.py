@@ -115,7 +115,7 @@ elif isinstance(data_result, pd.DataFrame):
             
             # 3. Android WebView için kütüphaneyi HTML içine zorla enjekte ediyoruz
             # Bu scriptler ağın çizilmesini sağlayan asıl motorlardır.
-            import streamlit.components.v1 as components
+            
             components.html(html_content, height=600, scrolling=True)
             
         except Exception as e:

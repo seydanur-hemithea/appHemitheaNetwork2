@@ -39,9 +39,9 @@ def load_dynamic_data(uname, token):
 # --- ANA AKIŞ ---
 st.title("🌐 Hemithea Network Analytics")
 
-query_params = st.query_params
-current_username = query_params.get("username")
-current_token = query_params.get("token")
+# Streamlit'in yeni versiyonları için query_params kullanımı
+current_username = st.query_params.get("username")
+current_token = st.query_params.get("token")
 
 data = load_dynamic_data(current_username, current_token)
 
@@ -61,20 +61,30 @@ if data is not None:
         components.html(net.generate_html(), height=650)
 
         st.divider()
+        st.write("📸 Statik Ağ Görüntüsü Hazırla")
+        
         # --- GÜVENLİ FOTOĞRAF OLUŞTURMA ---
-        if st.button("📸 İndirme Butonunu Hazırla"):
-            try:
-                plt.clf()
-                fig, ax = plt.subplots(figsize=(10, 7))
-                pos = nx.spring_layout(G)
-                nx.draw(G, pos, ax=ax, with_labels=True, node_color='skyblue', width=1.0)
-                
-                buf = BytesIO()
-                plt.savefig(buf, format="png")
-                st.download_button(label="📥 PNG Olarak İndir", data=buf.getvalue(), file_name="graph.png", mime="image/png")
-                plt.close(fig)
-            except Exception as e:
-                st.error(f"Grafik hatası: {e}")
+        # Butona basınca değil, sayfa yüklendiğinde hazırlayıp butona veriyoruz ki donma yapmasın
+        try:
+            plt.clf()
+            fig, ax = plt.subplots(figsize=(10, 7))
+            pos = nx.spring_layout(G)
+            # Parametreleri garantiye alalım: node_size ve width
+            nx.draw(G, pos, ax=ax, with_labels=True, node_color='skyblue', node_size=800, width=1.0, font_size=8)
+            
+            buf = BytesIO()
+            plt.savefig(buf, format="png", dpi=150)
+            buf.seek(0) # Dosya imlecini başa sar
+            
+            st.download_button(
+                label="📥 PNG Olarak İndir", 
+                data=buf, 
+                file_name=f"hemithea_graph_{current_username}.png", 
+                mime="image/png"
+            )
+            plt.close(fig)
+        except Exception as e:
+            st.error(f"Grafik hazırlama hatası: {e}")
 
     with tab2:
         st.subheader("Ağ İstatistikleri")
@@ -85,16 +95,19 @@ if data is not None:
         }).sort_values(by='Skor', ascending=False)
         
         st.dataframe(metrics_df, use_container_width=True)
-        csv_data = metrics_df.to_csv(index=False).encode('utf-8-sig') # 'utf-8-sig' Excel uyumluluğu sağlar
+        
+        # Excel uyumlu CSV
+        csv_data = metrics_df.to_csv(index=False).encode('utf-8-sig')
 
         st.download_button(
             label="📄 Metrikleri Tablo (CSV) Olarak İndir",
             data=csv_data,
-            file_name=f"hemithea_metrics.csv",
+            file_name=f"hemithea_metrics_{current_username}.csv",
             mime="text/csv"
         )
 
     with tab3:
+        st.subheader("Ham Veri")
         st.dataframe(data, use_container_width=True)
 else:
     st.info("👋 Veri bekleniyor...")

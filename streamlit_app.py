@@ -87,7 +87,7 @@ if data is not None:
             st.error(f"Grafik hazırlama hatası: {e}")
 
     with tab2:
-        with tab2:
+        
         st.subheader("📈 Ağ İstatistikleri ve Makine Öğrenmesi")
         
         # Mevcut metrikleri hesapla

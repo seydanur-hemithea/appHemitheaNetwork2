@@ -107,7 +107,7 @@ elif isinstance(data_result, pd.DataFrame):
         
         net.toggle_physics(True)
         # GÜNCELLEME: components.html yerine st.iframe (Kararmayı önler ve 2026 uyumludur)
-         try:
+        try:
             html_data = net.generate_html()
             # st.iframe yerine daha stabil olan bileşene dönüyoruz
             

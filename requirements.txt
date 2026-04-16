@@ -4,3 +4,4 @@ networkx
 plotly
 pyvis
 matplotlib
+scikit-learn

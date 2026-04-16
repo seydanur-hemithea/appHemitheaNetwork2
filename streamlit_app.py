@@ -10,34 +10,64 @@ from sklearn.preprocessing import StandardScaler
 import tempfile
 import os
 
-# --- 1. SAYFA AYARLARI ---
-st.set_page_config(page_title="Hemithea Network AI", layout="wide")
+# --- 1. OTURUM VE PARAMETRE YÖNETİMİ ---
+if "username" not in st.session_state:
+    st.session_state.username = None
 
-# --- 2. VERİ ÇEKME FONKSİYONU ---
-def load_dynamic_data(user_id):
-    # Senin mevcut veri çekme mantığın buraya gelecek
-    # Örnek olarak URL veya Google Sheets bağlantını buraya uyarla
+# query_params artık yeni Streamlit versiyonlarında bu şekilde alınıyor
+params = st.query_params
+if "username" in params:
+    st.session_state.username = params["username"]
+    st.session_state.token = params.get("token", "")
+
+# --- 2. GÜVENLİ VERİ ÇEKME ---
+@st.cache_data(ttl=2)
+def load_dynamic_data(uname, token):
+    if not uname or not token:
+        return None
     try:
-        # Burayı kendi veri kaynağına göre güncelle Şeyda Nur
-        # data_result = requests.get(URL).json() vb.
-        return "EMPTY" # Şimdilik placeholder
-    except:
+        # Senin Render üzerindeki yükleme klasörün
+        target_url = f"https://apphemitheanetwork.onrender.com/uploads/{uname}/network_data.csv?token={token}"
+        response = requests.get(target_url, timeout=20)
+        if response.status_code == 200:
+            df = pd.read_csv(StringIO(response.text))
+            return df if not df.empty else "EMPTY"
+        return "NOT_FOUND"
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
         return "CONNECTION_ERROR"
+    except:
+        return "ERROR"
 
 # --- 3. ANA AKIŞ ---
-current_user = "SeydaNur" # Dinamik kullanıcı adın
-data_result = load_dynamic_data(current_user)
+st.title("🌐 Hemithea Network Analytics")
 
-# NOT: data_result'ın DataFrame olduğunu varsayarak devam ediyorum 
-# (Test için boş bir DF oluşturuyorum, sen kendi yükleme kısmını koru)
-if data_result == "EMPTY":
-    # Test verisi (Senin gerçek verilerin gelince burası DF olacak)
-    data_result = pd.DataFrame({'Kaynak': ['A', 'B', 'C', 'A'], 'Hedef': ['B', 'C', 'A', 'D']})
+current_user = st.session_state.get("username")
+current_token = st.session_state.get("token")
 
-if isinstance(data_result, pd.DataFrame):
-    st.success(f"✅ Hemithea Sistemi Aktif: {current_user}")
+if not current_user:
+    st.warning("🔑 Giriş bilgileri bekleniyor... Android üzerinden yönlendirme gerekiyor.")
+    if st.button("🔄 Oturumu Yenile"):
+        st.rerun()
+    st.stop()
+
+data_result = load_dynamic_data(current_user, current_token)
+
+# --- 4. DURUM KONTROLLERİ ---
+if isinstance(data_result, str):
+    if data_result == "CONNECTION_ERROR":
+        st.error("📡 Sunucu uyanıyor... Lütfen 10 saniye bekleyip tekrar deneyiniz.")
+    elif data_result == "NOT_FOUND":
+        st.info(f"🔍 Hoş geldin {current_user}! Henüz analiz edilecek veri yüklenmemiş.")
+    elif data_result == "EMPTY":
+        st.warning("⚠️ Dosya bulundu ancak içeriği boş!")
+    else:
+        st.error("📡 Sunucu ile bağlantı kurulamıyor.")
+    st.stop()
+
+elif isinstance(data_result, pd.DataFrame):
+    st.success(f"✅ Hoş geldin {current_user}")
     
-    # --- ANALİZ MOTORU ---
+    # --- ANALİZLER ---
     G = nx.from_pandas_edgelist(data_result, source=data_result.columns[0], target=data_result.columns[1])
     degree_cent = nx.degree_centrality(G)
     betweenness = nx.betweenness_centrality(G)
@@ -48,52 +78,86 @@ if isinstance(data_result, pd.DataFrame):
         'betweenness': list(betweenness.values())
     })
 
-    # --- KNN YAPAY ZEKA ---
-    if len(metrics_df) > 3:
-        try:
+    tab1, tab2 = st.tabs(["🕸️ Analiz Haritası", "📊 YZ Metrikleri"])
+
+    with tab1:
+        st.subheader("🌐 Ağ Etkileşim Haritası")
+        use_ai = st.checkbox("🤖 KNN Sınıflandırmasını Uygula", key="ai_check")
+        net = Network(height="550px", width="100%", bgcolor="#ffffff", font_color="black")
+        
+        if use_ai and len(metrics_df) > 3:
             X = metrics_df[['degree', 'betweenness']].values
             y = (metrics_df['betweenness'] > metrics_df['betweenness'].mean()).astype(int)
             scaler = StandardScaler()
             X_scaled = scaler.fit_transform(X)
-            knn = KNeighborsClassifier(n_neighbors=min(3, len(metrics_df)-1))
+            knn = KNeighborsClassifier(n_neighbors=min(3, len(X)-1))
             knn.fit(X_scaled, y)
             metrics_df['AI_Role'] = knn.predict(X_scaled)
-            metrics_df['Durum'] = metrics_df['AI_Role'].map({1: "🎯 Stratejik Köprü", 0: "👤 Normal Aktör"})
-            metrics_df['color'] = metrics_df['AI_Role'].map({1: "#e74c3c", 0: "#3498db"})
-        except:
-            metrics_df['Durum'] = "Analiz Edildi"
-            metrics_df['color'] = "#3498db"
-
-    # --- 🌐 GÖRSELLEŞTİRME (İnteraktif Ağ) ---
-    st.subheader("🌐 Ağ Etkileşim Haritası")
-    try:
-        net = Network(height="500px", width="100%", bgcolor="#ffffff", font_color="black")
-        for _, row in metrics_df.iterrows():
-            net.add_node(row['node'], label=str(row['node']), color=row.get('color', "#3498db"))
-        for edge in G.edges():
-            net.add_edge(edge[0], edge[1])
-
+            
+            for _, row in metrics_df.iterrows():
+                role_color = "#e74c3c" if row.get('AI_Role') == 1 else "#3498db"
+                net.add_node(row['node'], label=str(row['node']), color=role_color)
+            
+            # Kenarları ekle
+            for edge in G.edges():
+                net.add_edge(edge[0], edge[1])
+        else:
+            net.from_nx(G)
+        
         net.toggle_physics(True)
-        html_data = net.generate_html()
-        
-        # MODERN YÖNTEM: st.iframe (Kararmayı önler ve Haziran 2026'ya hazır)
-        st.iframe(srcdoc=html_data, height=550, scrolling=False)
-    except Exception as e:
-        st.error(f"Grafik yüklenemedi: {e}")
+        # GÜNCELLEME: components.html yerine st.iframe (Kararmayı önler ve 2026 uyumludur)
+        st.iframe(srcdoc=net.generate_html(), height=600)
 
-    # --- 📊 RAPORLAMA ---
-    st.divider()
-    st.subheader("📊 Analitik Raporlama")
-    st.dataframe(metrics_df[['node', 'degree', 'betweenness', 'Durum']], width="stretch")
-
-    # --- 📂 İNDİRME BÖLÜMÜ (Hatalı kısım burasıydı) ---
-    st.write("📂 **Analiz Çıktılarını İndir**")
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        csv_data = metrics_df.to_csv(index=False).encode('utf-8-sig')
-        # Tırnağı ve parantezi tam olarak böyle kapatmalısın:
-        st.download_button("📄 Veri Raporu (CSV)", csv_data, f"analiz_{current_user}.csv", "text/csv")
+    with tab2:
+        st.subheader("🤖 Yapay Zeka (KNN) Raporu")
+        if len(metrics_df) > 3:
+            try:
+                # KNN analizini burada da yapıyoruz ki tabloda görünsün
+                X_rep = metrics_df[['degree', 'betweenness']].values
+                X_rep_scaled = StandardScaler().fit_transform(X_rep)
+                y_rep = (metrics_df['betweenness'] > metrics_df['betweenness'].mean()).astype(int)
+                knn_rep = KNeighborsClassifier(n_neighbors=min(3, len(metrics_df)-1)).fit(X_rep_scaled, y_rep)
+                metrics_df['Rol_Tanimi'] = knn_rep.predict(X_rep_scaled)
+                metrics_df['Durum'] = metrics_df['Rol_Tanimi'].map({1: "Stratejik Köprü", 0: "Normal Aktör"})
+                st.info("💡 Aktörler ağdaki stratejik konumlarına göre sınıflandırıldı.")
+            except: pass
         
-    with col2:
-        st.info("💡 Görsel kayıtlar aşağıda hazırlanmıştır.")
+        st.dataframe(metrics_df, use_container_width=True)
+        st.divider()
+        
+        st.write("📂 **Analiz Çıktılarını İndir**")
+        c1, c2 = st.columns(2)
+        with c1:
+            csv_data = metrics_df.to_csv(index=False).encode('utf-8-sig')
+            st.download_button("📄 Veri Raporu (CSV)", csv_data, f"rapor_{current_user}.csv", "text/csv")
+        with c2:
+            try:
+                net_dl = Network(height="600px", width="100%", bgcolor="#ffffff")
+                net_dl.from_nx(G)
+                temp_path = os.path.join(tempfile.gettempdir(), f"dl_{current_user}.html")
+                net_dl.save_graph(temp_path)
+                with open(temp_path, 'r', encoding='utf-8') as f:
+                    html_s = f.read()
+                st.download_button("🌐 İnteraktif Ağ (HTML)", html_s, f"ag_{current_user}.html", "text/html")
+            except: st.write("Hazırlanıyor...")
+
+        st.write("📸 **Görsel Kayıtlar**")
+        c3, c4 = st.columns(2) 
+        with c3:
+            plt.clf()
+            fig_tbl, ax_tbl = plt.subplots(figsize=(10, 6))
+            ax_tbl.axis('off')
+            # Font hatası almamak için metriklerin ilk 15 satırını çiziyoruz
+            ax_tbl.table(cellText=metrics_df.head(15).values, colLabels=metrics_df.columns, loc='center')
+            buf_tbl = BytesIO()
+            plt.savefig(buf_tbl, format="png", dpi=100)
+            plt.close(fig_tbl) # Belleği boşalt
+            st.download_button("🖼️ Tablo Resmi", buf_tbl.getvalue(), "tablo.png", "image/png")
+        with c4:
+            plt.clf()
+            fig_gr, ax_gr = plt.subplots(figsize=(10, 8))
+            nx.draw(G, with_labels=True, node_color='#3498db', node_size=300, font_size=7)
+            buf_gr = BytesIO()
+            plt.savefig(buf_gr, format="png", dpi=100)
+            plt.close(fig_gr) # Belleği boşalt
+            st.download_button("📸 Ağ Resmi", buf_gr.getvalue(), "ag.png", "image/png")

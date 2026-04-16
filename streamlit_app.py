@@ -93,11 +93,43 @@ else:
             st.subheader("🤖 KNN Tahmin Sonuçları")
             st.dataframe(metrics_df, use_container_width=True)
             
-            # İndirme Butonu
-            csv = metrics_df.to_csv(index=False).encode('utf-8-sig')
-            st.download_button("📄 Analiz Sonuçlarını İndir", csv, "hemithea_ai_report.csv", "text/csv")
-
-    elif data_result == "NOT_FOUND":
-        st.info("🔍 Analiz edilecek veri henüz yüklenmedi.")
-    else:
-        st.error("📡 Sunucu bağlantısında bir sorun var.")
+             st.divider()
+            st.write("📂 *Dosyaları İndir*")
+            
+            # Yan yana iki kolon oluşturalım
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # --- CSV İNDİRME (Excel Uyumlu) ---
+                csv_data = metrics_df.to_csv(index=False).encode('utf-8-sig')
+                st.download_button(
+                    label="📄 Metrikleri İndir (CSV)",
+                    data=csv_data,
+                    file_name=f"hemithea_analiz_{u}.csv",
+                    mime="text/csv",
+                    key="download-csv"
+                )
+            
+            with col2:
+                # --- PNG İNDİRME (Ağ Grafiği) ---
+                try:
+                    plt.clf()
+                    fig, ax = plt.subplots(figsize=(10, 8))
+                    pos = nx.spring_layout(G)
+                    nx.draw(G, pos, ax=ax, with_labels=True, 
+                            node_color='skyblue', node_size=700, 
+                            width=1.0, font_size=8)
+                    
+                    buf = BytesIO()
+                    plt.savefig(buf, format="png", dpi=150)
+                    plt.close(fig) # Belleği temizle
+                    
+                    st.download_button(
+                        label="📸 Ağ Grafiğini İndir (PNG)",
+                        data=buf.getvalue(),
+                        file_name=f"hemithea_graph_{u}.png",
+                        mime="image/png",
+                        key="download-png"
+                    )
+                except Exception as e:
+                    st.error(f"Grafik hazırlanamadı: {e}")

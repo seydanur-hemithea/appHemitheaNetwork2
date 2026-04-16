@@ -93,7 +93,7 @@ else:
             st.subheader("🤖 KNN Tahmin Sonuçları")
             st.dataframe(metrics_df, use_container_width=True)
             
-             st.divider()
+            st.divider()
             st.write("📂 *Dosyaları İndir*")
             
             # Yan yana iki kolon oluşturalım

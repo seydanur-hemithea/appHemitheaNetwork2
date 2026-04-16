@@ -11,10 +11,14 @@ from sklearn.preprocessing import StandardScaler
 import tempfile
 
 # --- 1. OTURUM VE PARAMETRE YÖNETİMİ ---
-query_params = st.query_params
-if "username" in query_params:
-    st.session_state.username = query_params["username"]
-    st.session_state.token = query_params.get("token", "")
+# Parametreleri al ve session_state'e aktar
+if "username" not in st.session_state:
+    st.session_state.username = None
+
+params = st.query_params
+if "username" in params:
+    st.session_state.username = params["username"]
+    st.session_state.token = params.get("token", "")
 
 # --- 2. GÜVENLİ VERİ ÇEKME ---
 @st.cache_data(ttl=2)
@@ -23,11 +27,14 @@ def load_dynamic_data(uname, token):
         return None
     try:
         target_url = f"https://apphemitheanetwork.onrender.com/uploads/{uname}/network_data.csv?token={token}"
-        response = requests.get(target_url, timeout=12)
+        # Timeout'u 20 saniyeye çıkardık (Render uyanana kadar beklesin)
+        response = requests.get(target_url, timeout=20)
         if response.status_code == 200:
             df = pd.read_csv(StringIO(response.text))
             return df if not df.empty else "EMPTY"
         return "NOT_FOUND"
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+        return "CONNECTION_ERROR"
     except:
         return "ERROR"
 
@@ -37,28 +44,26 @@ st.title("🌐 Hemithea Network Analytics")
 current_user = st.session_state.get("username")
 current_token = st.session_state.get("token")
 
+# Eğer kullanıcı adı yoksa ekranı kilitle
 if not current_user:
-    st.warning("🔑 Giriş bilgileri bekleniyor... Lütfen Android üzerinden veriyi yükleyin.")
-    if st.button("Sistemi Yenile"):
+    st.warning("🔑 Giriş bilgileri bekleniyor... Android üzerinden yönlendirme gerekiyor.")
+    # Manuel deneme butonu
+    if st.button("🔄 Oturumu Yenile"):
         st.rerun()
     st.stop()
 
 data_result = load_dynamic_data(current_user, current_token)
 
 # --- 4. DURUM KONTROLLERİ ---
-if isinstance(data_result, pd.DataFrame):
+if data_result == "CONNECTION_ERROR":
+    st.error("📡 Sunucu uyanıyor... Lütfen bağlantınızı kontrol edin ve 10 saniye bekleyip tekrar deneyin.")
+    if st.button("Tekrar Bağlan"):
+        st.rerun()
+    st.stop()
+
+elif isinstance(data_result, pd.DataFrame):
     st.success(f"✅ Hoş geldin {current_user}")
-    
-    # Metrik Hesaplamaları
-    G = nx.from_pandas_edgelist(data_result, source=data_result.columns[0], target=data_result.columns[1])
-    degree_cent = nx.degree_centrality(G)
-    betweenness = nx.betweenness_centrality(G)
-    
-    metrics_df = pd.DataFrame({
-        'node': list(degree_cent.keys()),
-        'degree': list(degree_cent.values()),
-        'betweenness': list(betweenness.values())
-    })
+
 
     tab1, tab2 = st.tabs(["🕸️ Analiz Haritası", "📊 YZ Metrikleri"])
 

@@ -17,17 +17,29 @@ st.set_page_config(page_title="Hemithea Analiz", layout="wide")
 
 BASE_RENDER_URL = "https://apphemitheanetwork.onrender.com/uploads"
 
-@st.cache_data(ttl=2)
+@st.cache_data(ttl=2) # ttl=2 veri güncelliği için iyi ama test için artırılabilir
 def load_dynamic_data(uname, token):
-    if not uname or not token: return None
+    if not uname or not token:
+        st.error("Kullanıcı adı veya Token eksik!")
+        return None
     try:
         target_url = f"{BASE_RENDER_URL}/{uname}/network_data.csv?token={token}"
-        response = requests.get(target_url, timeout=5)
+        response = requests.get(target_url, timeout=10) # Süreyi 10'a çıkardık
+        
         if response.status_code == 200:
+            if not response.text.strip(): # Dosya boş mu kontrolü
+                st.warning("Dosya bulundu ama içi boş!")
+                return None
             return pd.read_csv(StringIO(response.text))
+        else:
+            st.error(f"Sunucu Hatası: {response.status_code}")
+            return None
+    except requests.exceptions.Timeout:
+        st.error("Sunucu çok geç yanıt verdi (Timeout)!")
         return None
-    except: return None
-
+    except Exception as e:
+        st.error(f"Bağlantı Hatası: {e}")
+        return None
 # --- ANA AKIŞ ---
 st.title("🌐 Hemithea Network Analytics")
 

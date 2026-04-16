@@ -12,23 +12,33 @@ import os
 import streamlit.components.v1 as components
 import plotly.graph_objects as go
 
-# --- 1. ÖRNEK VERİ FONKSİYONU ---
-def get_sample_data():
-    return pd.DataFrame({
-        'Kaynak': ['Analiz', 'Yapay Zeka', 'Veri Bilimi', 'Hemithea', 'Network', 'Marmara', 'BTK Akademi', 'Gelecek'],
-        'Hedef': ['Veri Bilimi', 'Network', 'Hemithea', 'Analiz', 'Yapay Zeka', 'Veri Bilimi', 'Yapay Zeka', 'Hemithea']
-    })
+# --- 1. GITHUB RAW ÇEVİRİCİ ALGORİTMA ---
+def to_raw(url):
+    if "github.com" in url and "raw" not in url:
+        return url.replace("github.com", "raw.githubusercontent.com").replace("/blob/", "/")
+    return url
 
-# --- 2. OTURUM VE PARAMETRE YÖNETİMİ ---
+# --- 2. VİTRİN VERİ FONKSİYONU ---
+def get_vitrin_data(secim):
+    linkler = {
+        "Efendi Analizi": "https://github.com/seydanur-hemithea/appHemitheaNetwork2/blob/main/Efendi.csv",
+        "Game of Thrones": "https://github.com/seydanur-hemithea/appHemitheaNetwork2/blob/main/GoT.csv"
+    }
+    try:
+        raw_url = to_raw(linkler[secim])
+        response = requests.get(raw_url)
+        df = pd.read_csv(StringIO(response.text))
+        return df
+    except:
+        return pd.DataFrame({'Kaynak': ['Hata'], 'Hedef': ['Veri Alınamadı']})
+
+# --- 3. OTURUM YÖNETİMİ ---
 if "username" not in st.session_state:
     st.session_state.username = None
+if "login_mode" not in st.session_state:
+    st.session_state.login_mode = False
 
-params = st.query_params
-if "username" in params and not st.session_state.username:
-    st.session_state.username = params["username"]
-    st.session_state.token = params.get("token", "")
-
-# --- 3. VERİ ÇEKME FONKSİYONU ---
+# --- 4. VERİ ÇEKME (RENDER) ---
 @st.cache_data(ttl=2)
 def load_dynamic_data(uname, token):
     if not uname or not token: return None
@@ -41,32 +51,49 @@ def load_dynamic_data(uname, token):
         return "NOT_FOUND"
     except: return "CONNECTION_ERROR"
 
-# --- 4. ANA AKIŞ VE LOGIN KONTROLÜ ---
+# --- 5. ANA EKRAN TASARIMI ---
+st.set_page_config(page_title="Hemithea Network", layout="wide")
 st.title("🌐 Hemithea Network Analytics")
 
-if not st.session_state.username:
-    # GİRİŞ YAPILMAMIŞ: Örnek Mod ve Sidebar Login
-    st.info("👋 **Hoş Geldiniz!** Şu an örnek analiz modundasınız. Kendi verileriniz için soldan giriş yapın.")
-    data_result = get_sample_data()
+# SIDEBAR: Giriş ve Kontrol
+with st.sidebar:
+    st.image("https://cdn-icons-png.flaticon.com/512/2103/2103633.png", width=100) # Şirin bir ikon
+    st.subheader("🛠️ Kontrol Paneli")
     
-    with st.sidebar:
-        st.subheader("🛡️ Üye Girişi")
-        u_id = st.text_input("Kullanıcı Kimliği:")
-        u_tk = st.text_input("Erişim Tokenı:", type="password")
-        if st.button("Sistemi Başlat"):
-            st.session_state.username = u_id
-            st.session_state.token = u_tk
+    if not st.session_state.username:
+        if st.button("🚀 Kendi Verini Analiz Et (Giriş Yap)"):
+            st.session_state.login_mode = True
+        
+        if st.session_state.login_mode:
+            st.divider()
+            u_id = st.text_input("Kullanıcı Kimliği:")
+            u_tk = st.text_input("Erişim Tokenı:", type="password")
+            if st.button("Sistemi Başlat"):
+                st.session_state.username = u_id
+                st.session_state.token = u_tk
+                st.session_state.login_mode = False
+                st.rerun()
+            if st.button("Vitrine Dön"):
+                st.session_state.login_mode = False
+                st.rerun()
+    else:
+        st.success(f"Oturum Açıldı: {st.session_state.username}")
+        if st.button("🚪 Çıkış Yap"):
+            st.session_state.username = None
             st.rerun()
-else:
-    # GİRİŞ YAPILMIŞ: Gerçek Veri
-    data_result = load_dynamic_data(st.session_state.username, st.session_state.token)
-    st.sidebar.success(f"Oturum Açıldı: {st.session_state.username}")
-    if st.sidebar.button("Çıkış Yap"):
-        st.session_state.username = None
-        st.rerun()
 
-# --- 5. ANALİZ VE TABLAR ---
+# VERİ SEÇİMİ
+if not st.session_state.username:
+    st.info("👋 **Hemithea Portfolyo Modu.** Örnek analizleri inceleyin veya kendi verileriniz için giriş yapın.")
+    secilen_analiz = st.radio("İncelemek istediğiniz portfolyo çalışması:", 
+                              ["Efendi Analizi", "Game of Thrones"], horizontal=True)
+    data_result = get_vitrin_data(secilen_analiz)
+else:
+    data_result = load_dynamic_data(st.session_state.username, st.session_state.token)
+
+# --- 6. ANALİZ VE GÖRSELLEŞTİRME ---
 if isinstance(data_result, pd.DataFrame):
+    # Grafik Hazırlığı
     G = nx.from_pandas_edgelist(data_result, source=data_result.columns[0], target=data_result.columns[1])
     degree_cent = nx.degree_centrality(G)
     betweenness = nx.betweenness_centrality(G)
@@ -80,19 +107,19 @@ if isinstance(data_result, pd.DataFrame):
     tab1, tab2 = st.tabs(["🕸️ Analiz Haritası", "📊 YZ Metrikleri"])
 
     with tab1:
-        st.subheader("🌐 Etkileşimli Analiz Paneli")
-        
         if not st.session_state.username:
-            # --- SEVDİĞİN ESKİ PYVIS YAPISI (Örnek Modda Çalışır) ---
-            net = Network(height="550px", width="100%", bgcolor="#ffffff", font_color="black")
+            # VİTRİN MODU: SEVDİĞİN PYVIS YAPISI
+            st.subheader(f"✨ {secilen_analiz} - Hareketli Ağ")
+            net = Network(height="600px", width="100%", bgcolor="#ffffff", font_color="black")
             net.from_nx(G)
             net.toggle_physics(True)
             try:
                 html_data = net.generate_html()
-                components.html(html_data, height=600, scrolling=True)
-            except: st.write("Ağ yükleniyor...")
+                components.html(html_data, height=650, scrolling=True)
+            except: st.write("Grafik yükleniyor...")
         else:
-            # --- HATASIZ PLOTLY YAPISI (Kendi Verilerin İçin) ---
+            # PROFESYONEL MOD: STABİL PLOTLY
+            st.subheader("📊 Kişisel Analiz Paneliniz")
             pos = nx.spring_layout(G, k=0.5, iterations=50)
             edge_x, edge_y = [], []
             for edge in G.edges():
@@ -118,7 +145,7 @@ if isinstance(data_result, pd.DataFrame):
             st.plotly_chart(fig, use_container_width=True)
 
     with tab2:
-        # --- SENİN KNN VE İNDİRME KODLARIN (HİÇ DOKUNULMADI) ---
+        # KNN Analizi ve Tablo (Eski kodun aynen korundu)
         st.subheader("🤖 Yapay Zeka (KNN) Raporu")
         if len(metrics_df) > 3:
             try:
@@ -128,35 +155,34 @@ if isinstance(data_result, pd.DataFrame):
                 knn_rep = KNeighborsClassifier(n_neighbors=min(3, len(metrics_df)-1)).fit(X_rep_scaled, y_rep)
                 metrics_df['Rol_Tanimi'] = knn_rep.predict(X_rep_scaled)
                 metrics_df['Durum'] = metrics_df['Rol_Tanimi'].map({1: "Stratejik Köprü", 0: "Normal Aktör"})
-                st.info("💡 Aktörler ağdaki stratejik konumlarına göre sınıflandırıldı.")
+                st.info("💡 Aktörler ağdaki konumlarına göre sınıflandırıldı.")
             except: pass
         
         st.dataframe(metrics_df, use_container_width=True)
         st.divider()
-        st.write("📂 **Analiz Çıktılarını İndir**")
+        
+        # İndirme Butonları (Senin kolon yapın)
+        st.write("📂 **Dosyaları İndir**")
         c1, c2 = st.columns(2)
         with c1:
-            csv_data = metrics_df.to_csv(index=False).encode('utf-8-sig')
-            st.download_button("📄 Veri Raporu (CSV)", csv_data, f"rapor.csv", "text/csv")
+            st.download_button("📄 CSV Raporu", metrics_df.to_csv(index=False).encode('utf-8-sig'), "rapor.csv", "text/csv")
         with c2:
             try:
-                net_dl = Network(height="600px", width="100%", bgcolor="#ffffff")
+                net_dl = Network(height="600px", width="100%")
                 net_dl.from_nx(G)
-                temp_path = os.path.join(tempfile.gettempdir(), f"dl_file.html")
-                net_dl.save_graph(temp_path)
-                with open(temp_path, 'r', encoding='utf-8') as f: html_s = f.read()
-                st.download_button("🌐 İnteraktif Ağ (HTML)", html_s, "ag_analizi.html", "text/html")
+                temp_p = os.path.join(tempfile.gettempdir(), "ag.html")
+                net_dl.save_graph(temp_p)
+                with open(temp_p, 'r', encoding='utf-8') as f: html_s = f.read()
+                st.download_button("🌐 HTML Analiz", html_s, "analiz.html", "text/html")
             except: st.write("Hazırlanıyor...")
 
         st.write("📸 **Görsel Kayıtlar**")
-        c3, c4 = st.columns(2) 
+        c3, c4 = st.columns(2)
         with c3:
-            plt.clf(); fig_tbl, ax_tbl = plt.subplots(figsize=(10, 6)); ax_tbl.axis('off')
-            ax_tbl.table(cellText=metrics_df.head(15).values, colLabels=metrics_df.columns, loc='center')
-            buf_tbl = BytesIO(); plt.savefig(buf_tbl, format="png", dpi=100); plt.close(fig_tbl)
-            st.download_button("🖼️ Tablo Resmi", buf_tbl.getvalue(), "tablo.png", "image/png")
+            plt.clf(); fig_t, ax_t = plt.subplots(figsize=(10, 6)); ax_t.axis('off')
+            ax_t.table(cellText=metrics_df.head(15).values, colLabels=metrics_df.columns, loc='center')
+            buf_t = BytesIO(); plt.savefig(buf_t, format="png"); st.download_button("🖼️ Tablo PNG", buf_t.getvalue(), "tablo.png", "image/png")
         with c4:
-            plt.clf(); fig_gr, ax_gr = plt.subplots(figsize=(10, 8))
-            nx.draw(G, with_labels=True, node_color='#3498db', node_size=300, font_size=7)
-            buf_gr = BytesIO(); plt.savefig(buf_gr, format="png", dpi=100); plt.close(fig_gr)
-            st.download_button("📸 Ağ Resmi", buf_gr.getvalue(), "ag.png", "image/png")
+            plt.clf(); fig_g, ax_g = plt.subplots(figsize=(10, 8))
+            nx.draw(G, with_labels=True, node_color='#3498db', node_size=300); buf_g = BytesIO(); plt.savefig(buf_g, format="png")
+            st.download_button("📸 Ağ PNG", buf_g.getvalue(), "ag.png", "image/png")

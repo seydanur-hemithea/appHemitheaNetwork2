@@ -5,3 +5,4 @@ plotly
 pyvis
 matplotlib
 scikit-learn
+tempfile

@@ -85,14 +85,14 @@ if data is not None:
         }).sort_values(by='Skor', ascending=False)
         
         st.dataframe(metrics_df, use_container_width=True)
-       csv_data = metrics_df.to_csv(index=False).encode('utf-8-sig') # 'utf-8-sig' Excel uyumluluğu sağlar
+        csv_data = metrics_df.to_csv(index=False).encode('utf-8-sig') # 'utf-8-sig' Excel uyumluluğu sağlar
 
-st.download_button(
-    label="📄 Metrikleri Tablo (CSV) Olarak İndir",
-    data=csv_data,
-    file_name=f"hemithea_metrics.csv",
-    mime="text/csv"
-)
+        st.download_button(
+            label="📄 Metrikleri Tablo (CSV) Olarak İndir",
+            data=csv_data,
+            file_name=f"hemithea_metrics.csv",
+            mime="text/csv"
+        )
 
     with tab3:
         st.dataframe(data, use_container_width=True)

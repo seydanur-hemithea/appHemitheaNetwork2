@@ -87,12 +87,39 @@ if data is not None:
             st.error(f"Grafik hazırlama hatası: {e}")
 
     with tab2:
-        st.subheader("Ağ İstatistikleri")
+        with tab2:
+        st.subheader("📈 Ağ İstatistikleri ve Makine Öğrenmesi")
+        
+        # Mevcut metrikleri hesapla
         degree_cent = nx.degree_centrality(G)
+        betweenness = nx.betweenness_centrality(G)
+        
         metrics_df = pd.DataFrame({
             'Aktör': list(degree_cent.keys()),
-            'Skor': list(degree_cent.values())
-        }).sort_values(by='Skor', ascending=False)
+            'Bağlantı Skoru': list(degree_cent.values()),
+            'Stratejik Rol': list(betweenness.values())
+        })
+
+        # --- KNN ALGORİTMASI BURADA ---
+        st.divider()
+        st.subheader("🤖 KNN Gruplandırma Analizi")
+        
+        # KNN için basit bir etiketleme (Örn: Skoru 0.5 üstü olanlar 'Popüler')
+        metrics_df['Kategori'] = metrics_df['Bağlantı Skoru'].apply(lambda x: 1 if x > metrics_df['Bağlantı Skoru'].mean() else 0)
+        
+        # Eğitim verisi (Bağlantı Skoru ve Stratejik Rol özelliklerini kullanıyoruz)
+        X = metrics_df[['Bağlantı Skoru', 'Stratejik Rol']].values
+        y = metrics_df['Kategori'].values
+        
+        if len(X) > 5: # Yeterli veri varsa
+            knn = KNeighborsClassifier(n_neighbors=3)
+            knn.fit(X, y)
+            metrics_df['KNN_Tahmin'] = knn.predict(X)
+            
+            st.info("KNN Algoritması çalıştırıldı: Aktörler benzerliklerine göre sınıflandırıldı.")
+            st.dataframe(metrics_df, use_container_width=True)
+        else:
+            st.warning("KNN analizi için daha fazla veri (satır) gerekiyor.")
         
         st.dataframe(metrics_df, use_container_width=True)
         

@@ -55,32 +55,29 @@ if not current_user:
 data_result = load_dynamic_data(current_user, current_token)
 
 # --- 4. DURUM KONTROLLERİ ---
+
 if isinstance(data_result, str):
+    # Eğer sonuç bir metinse (Hata durumu)
     if data_result == "CONNECTION_ERROR":
         st.error("📡 Sunucu uyanıyor... Lütfen 10 saniye bekleyip tekrar deneyiniz.")
         if st.button("Tekrar Bağlan"):
             st.rerun()
-        st.stop()
-
-elif data_result == "NOT_FOUND":
-        st.info(f"🔍 Hoş geldin {current_user}! Henüz analiz edilecek bir verin yüklü değil.")
-        with st.expander("❓ Verimi Nasıl Yüklerim?", expanded=True):
-            st.markdown("1. Uygulamadan veri yükleme ekranına git.\n2. CSV dosyanı seç.\n3. Yükleme bitince bu sayfayı yenile.")
-        if st.button("🔄 Veriyi Şimdi Kontrol Et"):
+    
+    elif data_result == "NOT_FOUND":
+        st.info(f"🔍 Hoş geldin {current_user}! Veri bulunamadı.")
+        if st.button("🔄 Veriyi Kontrol Et"):
             st.rerun()
-        st.stop()
-
-    elif data_result == "EMPTY":
+            
+    elif data_result == "EMPTY": # Hata aldığın 73. satır tam burası!
         st.warning("⚠️ Dosya bulundu ancak içeriği boş!")
-        st.stop()
 
-    else:
-        st.error("📡 Sunucu ile bağlantı kurulamıyor.")
-        st.stop()
+    st.stop() # Hata varsa burada durdur
 
-# 2. Eğer yukarıdaki 'str' engellerine takılmadıysa, bu bir DataFrame'dir
 elif isinstance(data_result, pd.DataFrame):
+    # Eğer sonuç bir tabloysa (Başarılı durum)
     st.success(f"✅ Hoş geldin {current_user}")
+    
+    # Analizler ve Tablar buradan başlasın...
 
     tab1, tab2 = st.tabs(["🕸️ Analiz Haritası", "📊 YZ Metrikleri"])
 

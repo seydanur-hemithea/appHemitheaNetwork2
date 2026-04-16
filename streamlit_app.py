@@ -51,26 +51,26 @@ if not current_user:
 
 data_result = load_dynamic_data(current_user, current_token)
 
-# --- 4. DURUM KONTROLLERİ ---
+# --- 4. DURUM KONTROLLERİ VE ANALİZ AKIŞI ---
+
 if isinstance(data_result, str):
+    # Hata durumlarını yönet
     if data_result == "CONNECTION_ERROR":
         st.error("📡 Sunucu uyanıyor... Lütfen 10 saniye bekleyip tekrar deneyiniz.")
-        if st.button("Tekrar Bağlan"):
-            st.rerun()
+        if st.button("Tekrar Bağlan"): st.rerun()
     elif data_result == "NOT_FOUND":
         st.info(f"🔍 Hoş geldin {current_user}! Veri bulunamadı.")
-        if st.button("🔄 Veriyi Kontrol Et"):
-            st.rerun()
+        if st.button("🔄 Veriyi Kontrol Et"): st.rerun()
     elif data_result == "EMPTY":
         st.warning("⚠️ Dosya bulundu ancak içeriği boş!")
     else:
-        st.error("📡 Sunucu ile bağlantı kurulamıyor.")
+        st.error(f"📡 Beklenmedik durum: {data_result}")
     st.stop()
 
 elif isinstance(data_result, pd.DataFrame):
     st.success(f"✅ Hoş geldin {current_user}")
     
-    # --- ANALİZLER ---
+    # 1. TEMEL AĞ ANALİZİ (G Nesnesi)
     G = nx.from_pandas_edgelist(data_result, source=data_result.columns[0], target=data_result.columns[1])
     degree_cent = nx.degree_centrality(G)
     betweenness = nx.betweenness_centrality(G)
@@ -81,63 +81,66 @@ elif isinstance(data_result, pd.DataFrame):
         'betweenness': list(betweenness.values())
     })
 
-    tab1, tab2 = st.tabs(["🕸️ Analiz Haritası", "📊 YZ Metrikleri"])
+    # 2. KNN (YAPAY ZEKA) MOTORU
+    if len(metrics_df) > 3:
+        try:
+            X = metrics_df[['degree', 'betweenness']].values
+            y = (metrics_df['betweenness'] > metrics_df['betweenness'].mean()).astype(int)
+            
+            scaler = StandardScaler()
+            X_scaled = scaler.fit_transform(X)
+            
+            knn = KNeighborsClassifier(n_neighbors=min(3, len(metrics_df)-1))
+            knn.fit(X_scaled, y)
+            
+            metrics_df['AI_Kategori'] = knn.predict(X_scaled)
+            metrics_df['Rol_Tanimi'] = metrics_df['AI_Kategori'].map({
+                1: "🎯 Stratejik Köprü", 
+                0: "👤 Normal Aktör"
+            })
+            metrics_df['color'] = metrics_df['AI_Kategori'].map({1: "#e74c3c", 0: "#3498db"})
+        except Exception as e:
+            st.error(f"KNN Hatası: {e}")
+
+    # 3. GÖRSELLEŞTİRME VE TABLAR (Android Optimize)
+    tab1, tab2 = st.tabs(["🕸️ Ağ Haritası", "📊 Analiz Raporu"])
 
     with tab1:
-        st.subheader("🌐 Ağ Etkileşim Haritası")
-        net = Network(height="550px", width="100%", bgcolor="#ffffff", font_color="black")
-        
-        # G'den veriyi al (set_cdn_resources satırı TAMAMEN SİLİNDİ)
-        net.from_nx(G)
-        net.toggle_physics(False) 
-
+        st.subheader("🌐 Ağ Yapısı")
+        # Android'de kararma yapmaması için sabit resim (Matplotlib) kullanıyoruz
         try:
-            html_data = net.generate_html()
-            # YENİ YÖNTEM: st.components.v1.html yerine st.iframe (Android için daha stabil)
-            st.logo("🌐") # Opsiyonel: Şık dursun diye
-            st.iframe(html_data, height=600, scrolling=True)
-        except Exception as e:
-            st.error(f"Harita yüklenemedi: {e}")
+            plt.clf()
+            fig, ax = plt.subplots(figsize=(10, 7))
+            pos = nx.spring_layout(G, k=0.6)
+            # KNN renklerini kullanarak çiz
+            colors = [metrics_df[metrics_df['node'] == n]['color'].values[0] if 'color' in metrics_df.columns else '#3498db' for n in G.nodes()]
+            nx.draw(G, pos, with_labels=True, node_color=colors, node_size=600, font_size=7, edge_color='#ecf0f1')
+            st.pyplot(fig)
+            plt.close(fig)
+        except: st.write("Harita yüklenirken bir sorun oluştu.")
 
     with tab2:
-        st.subheader("🤖 Yapay Zeka (KNN) ve Analitik Raporlama")
-        if len(metrics_df) > 3:
-            try:
-                X = metrics_df[['degree', 'betweenness']].values
-                scaler = StandardScaler()
-                X_scaled = scaler.fit_transform(X)
-                y = (metrics_df['betweenness'] > metrics_df['betweenness'].mean()).astype(int)
-                knn = KNeighborsClassifier(n_neighbors=min(3, len(metrics_df)-1))
-                knn.fit(X_scaled, y)
-                metrics_df['AI_Kategori'] = knn.predict(X_scaled)
-                metrics_df['Rol_Tanimi'] = metrics_df['AI_Kategori'].map({1: "Stratejik Köprü", 0: "Normal Aktör"})
-                st.info("💡 KNN Modeli: Aktörler ağdaki stratejik konumlarına göre sınıflandırıldı.")
-            except Exception as e:
-                st.error(f"YZ Analizi yapılamadı: {e}")
+        st.subheader("🤖 YZ Analitik Raporlama")
+        st.dataframe(metrics_df[['node', 'degree', 'betweenness', 'Rol_Tanimi']], width="stretch")
         
-        st.dataframe(metrics_df, width="stretch") 
         st.divider()
-        
-        # --- İNDİRME BÖLÜMÜ (TEK SEFER) ---
         st.write("📂 **Analiz Çıktılarını İndir**")
         c1, c2 = st.columns(2)
         with c1:
             csv_data = metrics_df.to_csv(index=False).encode('utf-8-sig')
-            st.download_button("📄 Veri Raporu (CSV)", csv_data, f"analiz_{current_user}.csv", "text/csv")
+            st.download_button("📄 Veri Raporu (CSV)", csv_data, f"analiz_{current_user}.csv")
         with c2:
             try:
-                net_dl = Network(height="600px", width="100%", bgcolor="#ffffff", font_color="black")
+                # İndirilen dosya interaktif (Pyvis) olacak
+                net_dl = Network(height="700px", width="100%", bgcolor="#ffffff")
                 net_dl.from_nx(G)
-                net_dl.set_cdn_resources(True)
-                temp_path = os.path.join(tempfile.gettempdir(), f"temp_{current_user}.html")
+                # Buradaki HTML'de grafiğin görünmesi için CDN ayarını manuel yapmıyoruz (Pyvis hallediyor)
+                temp_path = os.path.join(tempfile.gettempdir(), f"final_{current_user}.html")
                 net_dl.save_graph(temp_path)
                 with open(temp_path, 'r', encoding='utf-8') as f:
                     html_string = f.read()
-                st.download_button("🌐 Etkileşimli Ağ (HTML)", html_string, f"ag_{current_user}.html", "text/html")
-            except: st.write("Hazırlanıyor...")
-
-        st.write("📸 **Görsel Kayıtlar**")
-        c3, c4 = st.columns(2) 
+                st.download_button("🌐 İnteraktif Ağ (HTML)", html_string, f"ag_{current_user}.html", "text/html")
+            except: st.write("Hazırlanıyor...") 
         with c3:
             plt.clf()
             fig_tbl, ax_tbl = plt.subplots(figsize=(10, 6))

@@ -106,41 +106,27 @@ if isinstance(data_result, pd.DataFrame):
         st.divider()
         st.write("📂 **Analiz Çıktılarını İndir**")
         
+        # Dosyalar ve Etkileşimli Ağ
         c1, c2 = st.columns(2)
         with c1:
             csv_data = metrics_df.to_csv(index=False).encode('utf-8-sig')
             st.download_button("📄 Veri Raporu (CSV)", csv_data, f"analiz_{current_user}.csv", "text/csv")
         with c2:
-                # --- ETKİLEŞİMLİ HTML (BOŞ EKRAN SORUNUNU ÇÖZEN VERSİYON) ---
-                try:
-                    import tempfile # Geçici mutfak tezgahını kuruyoruz
-                    
-                    # 1. Ağı Hazırla
-                    net_dl = Network(height="600px", width="100%", bgcolor="#ffffff", font_color="black")
-                    net_dl.from_nx(G)
-                    
-                    # 2. Kritik Görsel Ayarları
-                    net_dl.toggle_physics(True)
-                    net_dl.set_cdn_resources(True) # JavaScript kütüphanelerini internetten çek
-                    
-                    # 3. Geçici Dosya Yöntemiyle Paketleme
-                    # Bu yöntem 'generate_html'den çok daha güvenlidir
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=".html") as tmp:
-                        net_dl.save_graph(tmp.name) # Ağı geçici dosyaya yaz
-                        with open(tmp.name, 'r', encoding='utf-8') as f:
-                            html_string = f.read() # Kodları hafızaya oku
-                    
-                    # 4. İndirme Butonu
-                    st.download_button(
-                        label="🌐 Etkileşimli Ağı İndir (HTML)",
-                        data=html_string,
-                        file_name=f"hemithea_interactive_{current_user}.html",
-                        mime="text/html",
-                        key="dl_html_final_v3" # Key'i güncelledik çakışma olmasın
-                    )
-                    st.caption("✨ İndirdiğiniz dosyayı Chrome veya Safari ile açabilirsiniz.")
-                except Exception as e:
-                    st.error(f"HTML Hazırlanırken bir hata oluştu: {e}")
+            try:
+                net_dl = Network(height="600px", width="100%", bgcolor="#ffffff", font_color="black")
+                net_dl.from_nx(G)
+                net_dl.toggle_physics(True)
+                net_dl.set_cdn_resources(True)
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".html") as tmp:
+                    net_dl.save_graph(tmp.name)
+                    with open(tmp.name, 'r', encoding='utf-8') as f:
+                        html_string = f.read()
+                st.download_button("🌐 Etkileşimli Ağ (HTML)", html_string, f"interaktif_ag_{current_user}.html", "text/html")
+            except: st.write("HTML Dosyası Hazırlanıyor...")
+
+        st.write("📸 **Görsel Kayıtlar**")
+        # --- DÜZELTİLEN KISIM: c3 ve c4 kolonları burada tanımlandı ---
+        c3, c4 = st.columns(2) 
         with c3:
             try:
                 plt.clf()

@@ -4,10 +4,10 @@ import networkx as nx
 from pyvis.network import Network
 import streamlit.components.v1 as components
 import requests
-from io import StringIO
-import matplotlib.pyplot as plt 
+from io import StringIO, BytesIO # <--- BytesIO buraya eklendi
 import matplotlib
-matplotlib.use('Agg')
+matplotlib.use('Agg') # Importların hemen altında kalmalı
+import matplotlib.pyplot as plt 
 
 # 1. Sayfa Ayarları
 st.set_page_config(page_title="Hemithea Analiz", layout="wide")
@@ -25,11 +25,10 @@ BASE_RENDER_URL = "https://apphemitheanetwork.onrender.com/uploads"
 
 # 2. Dinamik Veri Yükleme Fonksiyonu
 @st.cache_data(ttl=2)
-def load_dynamic_data(uname, token): # Token parametresi eklendi
+def load_dynamic_data(uname, token):
     if not uname or not token:
         return None
     try:
-        # FastAPI'ye giderken token'ı query parametresi olarak ekliyoruz
         target_url = f"{BASE_RENDER_URL}/{uname}/network_data.csv?token={token}"
         response = requests.get(target_url, timeout=5)
         
@@ -45,20 +44,17 @@ def load_dynamic_data(uname, token): # Token parametresi eklendi
 # --- ANA AKIŞ ---
 st.title("🌐 Hemithea Network Analytics")
 
-# URL parametresinden user_name al
 query_params = st.query_params
 current_username = query_params.get("username")
 current_token = query_params.get("token")
 
-# --- DEDEKTİF PANELİ (SIDEBAR) ---
-
+# --- SIDEBAR ---
 if current_username:
     st.sidebar.title("🔍 Sistem Denetimi")
     st.sidebar.info(f"Kullanıcı Adı: {current_username}")
     
     if st.sidebar.button("🔗 Bağlantıyı Manuel Test Et"):
         try:
-            # Test ederken de token kullanmalıyız
             test_url = f"{BASE_RENDER_URL}/{current_username}/network_data.csv?token={current_token}"
             res = requests.get(test_url, timeout=5)
             if res.status_code == 200:
@@ -68,25 +64,21 @@ if current_username:
         except Exception as e:
             st.sidebar.error(f"Bağlantı Hatası: {e}")
 
-
-# Veriyi yüklemeyi dene
 data = load_dynamic_data(current_username, current_token)
 
-
 if data is not None:
-    # Sütunları belirle
     cols = data.columns.tolist()
     src = cols[0]
     tgt = cols[1]
 
     st.success(f"✅ Analiz Hazır!")
     
-    # Sekmeler
     tab1, tab2, tab3 = st.tabs(["🕸️ Ağ Haritası", "📈 Metrikler", "📄 Veri"])
 
     G = nx.from_pandas_edgelist(data, source=src, target=tgt)
 
-   with tab1:
+    # --- TAB 1: AĞ HARİTASI ---
+    with tab1: # Girintileme düzeltildi
         st.subheader("Etkileşimli Ağ Haritası")
         net = Network(height="600px", width="100%", bgcolor="#ffffff", font_color="black")
         net.from_nx(G)
@@ -94,16 +86,18 @@ if data is not None:
         html_content = net.generate_html()
         components.html(html_content, height=650)
 
-        # --- PNG İNDİRME ÖZELLİĞİ (GÜVENLİ VERSİYON) ---
         st.divider()
+        st.write("📸 Ağ Görüntüsünü Kaydet")
+        
         try:
-            # Arka planda sessizce çizim yap
+            # Matplotlib figürünü açıkça oluştur ve temizle
+            plt.clf() 
             fig, ax = plt.subplots(figsize=(10, 7))
             pos = nx.spring_layout(G)
             nx.draw(G, pos, ax=ax, with_labels=True, node_color='skyblue', edge_color='gray', node_size=800, font_size=10)
             
             buf = BytesIO()
-            fig.savefig(buf, format="png", dpi=150) # Hız için dpi'yi biraz düşürdük
+            fig.savefig(buf, format="png", dpi=150)
             buf.seek(0)
             
             st.download_button(
@@ -112,11 +106,11 @@ if data is not None:
                 file_name=f"hemithea_graph_{current_username}.png",
                 mime="image/png"
             )
-            plt.close(fig) # Figürü tamamen kapat
-            plt.clf()      # Belleği temizle
+            plt.close(fig) 
         except Exception as e:
             st.error(f"Grafik hazırlanamadı: {e}")
 
+    # --- TAB 2: METRİKLER ---
     with tab2:
         st.subheader("Ağ İstatistikleri")
         degree_cent = nx.degree_centrality(G)
@@ -130,17 +124,17 @@ if data is not None:
 
         st.dataframe(metrics_df, use_container_width=True)
 
-        # --- CSV İNDİRME ÖZELLİĞİ ---
         st.divider()
         csv_data = metrics_df.to_csv(index=False).encode('utf-8')
         
         st.download_button(
-            label="Metrikleri Tablo (CSV) Olarak İndir",
+            label="📄 Metrikleri Tablo (CSV) Olarak İndir",
             data=csv_data,
             file_name=f"hemithea_metrics_{current_username}.csv",
             mime="text/csv"
         )
 
+    # --- TAB 3: VERİ ---
     with tab3:
         st.subheader("Yüklenen Veri Tablosu")
         st.dataframe(data, use_container_width=True)

@@ -87,39 +87,144 @@ if isinstance(data_result, pd.DataFrame):
         components.html(net.generate_html(), height=550)
 
     with tab2:
-        st.subheader("🤖 KNN Tahmin Sonuçları")
-        st.dataframe(metrics_df, use_container_width=True)
-        
-        st.divider()
-        st.write("📂 **Dosyaları İndir**")
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            # Excel uyumlu CSV (utf-8-sig)
-            csv_data = metrics_df.to_csv(index=False).encode('utf-8-sig')
-            st.download_button(
-                label="📄 Analizi İndir (CSV)",
-                data=csv_data,
-                file_name=f"hemithea_metrics_{current_user}.csv",
-                mime="text/csv"
-            )
-        
-        with col2:
-            # PNG İndirme
-            plt.clf()
-            fig, ax = plt.subplots(figsize=(8, 6))
-            nx.draw(G, with_labels=True, node_color='skyblue', node_size=600, font_size=8)
-            buf = BytesIO()
-            plt.savefig(buf, format="png", dpi=100)
-            plt.close(fig)
-            st.download_button(
-                label="📸 Ağı İndir (PNG)",
-                data=buf.getvalue(),
-                file_name=f"hemithea_graph_{current_user}.png",
-                mime="image/png"
-            )
+            st.subheader("🤖 Yapay Zeka (KNN) ve Analitik Raporlama")
+            
+            # --- 1. KNN ANALİZ MOTORU ---
+            if len(metrics_df) > 3:
+                try:
+                    # Özellikleri ölçeklendir (YZ Standartı)
+                    X = metrics_df[['degree', 'betweenness']].values
+                    scaler = StandardScaler()
+                    X_scaled = scaler.fit_transform(X)
+                    
+                    # Stratejik Rol Belirleme (Betweenness ortalamasına göre etiketle)
+                    y = (metrics_df['betweenness'] > metrics_df['betweenness'].mean()).astype(int)
+                    
+                    # KNN Eğitimi
+                    knn = KNeighborsClassifier(n_neighbors=min(3, len(metrics_df)-1))
+                    knn.fit(X_scaled, y)
+                    metrics_df['AI_Kategori'] = knn.predict(X_scaled)
+                    metrics_df['Rol_Tanimi'] = metrics_df['AI_Kategori'].map({1: "Stratejik Köprü", 0: "Normal Aktör"})
+                    
+                    st.info("💡 KNN Modeli: Aktörler ağdaki stratejik konumlarına göre sınıflandırıldı.")
+                except Exception as e:
+                    st.error(f"YZ Analizi yapılamadı: {e}")
+            
+            # Analiz Tablosunu Göster
+            st.dataframe(metrics_df, use_container_width=True)
+
+            st.divider()
+            
+            # --- 2. ÇIKTI MERKEZİ (İNDİRME BUTONLARI) ---
+            st.write("📂 **Analiz Çıktılarını İndir**")
+            
+            # İlk Satır: Veri ve Etkileşimli Dosya
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Excel Uyumlu CSV (utf-8-sig)
+                csv_data = metrics_df.to_csv(index=False).encode('utf-8-sig')
+                st.download_button(
+                    label="📄 Veri Raporunu İndir (CSV)",
+                    data=csv_data,
+                    file_name=f"analiz_raporu_{current_user}.csv",
+                    mime="text/csv",
+                    key="dl_csv_final"
+                )
+
+            with col2:
+                # Etkileşimli HTML Dosyası (Tıklanabilir Ağ)
+                try:
+                    net_dl = Network(height="600px", width="100%", bgcolor="#ffffff")
+                    net_dl.from_nx(G)
+                    net_dl.toggle_physics(True)
+                    html_content = net_dl.generate_html()
+                    
+                    st.download_button(
+                        label="🌐 Etkileşimli Ağı İndir (HTML)",
+                        data=html_content,
+                        file_name=f"interaktif_ag_{current_user}.html",
+                        mime="text/html",
+                        key="dl_html_final"
+                    )
+                except:
+                    st.write("HTML Hazırlanıyor...")
+
+            # İkinci Satır: Görsel (Resim) Raporlar
+            st.write("📸 **Görsel (Resim) Kayıtları**")
+            col3, col4 = st.columns(2)
+
+            with col3:
+                # Tabloyu Resim (PNG) Olarak İndir
+                try:
+                    plt.clf()
+                    fig_tbl, ax_tbl = plt.subplots(figsize=(10, 6))
+                    ax_tbl.axis('off')
+                    # İlk 20 satırı resme dök (Okunabilirlik için)
+                    plot_df = metrics_df.head(20)
+                    the_table = ax_tbl.table(cellText=plot_df.values, colLabels=plot_df.columns, 
+                                            loc='center', cellLoc='center')
+                    the_table.auto_set_font_size(False)
+                    the_table.set_fontsize(9)
+                    the_table.scale(1.2, 1.2)
+                    
+                    buf_tbl = BytesIO()
+                    plt.savefig(buf_tbl, format="png", dpi=150, bbox_inches='tight')
+                    plt.close(fig_tbl)
+                    
+                    st.download_button(
+                        label="🖼️ Tabloyu Resim Yap",
+                        data=buf_tbl.getvalue(),
+                        file_name=f"analiz_tablo_{current_user}.png",
+                        mime="image/png",
+                        key="dl_table_img"
+                    )
+                except:
+                    st.write("Tablo resmi hazırlanıyor...")
+
+            with col4:
+                # Ağ Grafiğini Resim (PNG) Olarak İndir (Düğümler arası mesafeli)
+                try:
+                    plt.clf()
+                    fig_gr, ax_gr = plt.subplots(figsize=(10, 8))
+                    # k=0.5 düğümlerin birbirine girmesini önler
+                    pos = nx.spring_layout(G, k=0.5) 
+                    nx.draw(G, pos, with_labels=True, node_color='#3498db', 
+                            node_size=400, font_size=7, edge_color='#ecf0f1')
+                    
+                    buf_gr = BytesIO()
+                    plt.savefig(buf_gr, format="png", dpi=150, bbox_inches='tight')
+                    plt.close(fig_gr)
+                    
+                    st.download_button(
+                        label="📸 Ağı Resim Yap",
+                        data=buf_gr.getvalue(),
+                        file_name=f"ag_semasi_{current_user}.png",
+                        mime="image/png",
+                        key="dl_graph_img"
+                    )
+                except:
+                    st.write("Grafik resmi hazırlanıyor...")
 
 elif data_result == "NOT_FOUND":
-    st.info("🔍 Analiz edilecek veri henüz hazır değil.")
-else:
-    st.error("📡 Sunucu bağlantı hatası.")
+        st.info(f"🔍 Hoş geldin {uname}! Henüz analiz edilecek bir verin yüklü değil.")
+        
+        # Kullanıcıyı yönlendiren bilgilendirme kutusu
+        with st.expander("❓ Verimi Nasıl Yüklerim?", expanded=True):
+            st.markdown("""
+            1.  **Uygulama Ana Sayfasına Dön:** Hemithea mobil uygulamasından veri yükleme ekranına git.
+            2.  **Dosyanı Seç:** `.csv` formatındaki ağ verilerini sisteme yükle.
+            3.  **Analiz Et:** Yükleme tamamlandıktan sonra bu sayfa otomatik olarak güncellenecek (veya yukarıdaki 'Sistemi Yenile' butonuna basabilirsin).
+            """)
+        
+        # Kullanıcının manuel tetiklemesi için buton
+        if st.button("🔄 Veriyi Şimdi Kontrol Et"):
+            st.rerun()
+
+    elif data_result == "EMPTY":
+        st.warning("⚠️ Dosya bulundu ancak içeriği boş!")
+        st.write("Lütfen CSV dosyanızın başlıklarını ve verilerini kontrol edip tekrar yükleyin.")
+
+    elif isinstance(data_result, str) and "ERROR" in data_result:
+        st.error("📡 Sunucu ile bağlantı kurulamıyor.")
+        st.info("Render sunucusu uyku modunda olabilir, lütfen birkaç saniye bekleyip sayfayı yenileyin.")

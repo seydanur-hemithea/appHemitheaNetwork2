@@ -77,50 +77,52 @@ elif isinstance(data_result, pd.DataFrame):
     # Eğer sonuç bir tabloysa (Başarılı durum)
     st.success(f"✅ Hoş geldin {current_user}")
     
-    # Analizler ve Tablar buradan başlasın...
+    # --- 1. TÜM ANALİZLERİ BURADA (TABLARDAN ÖNCE) YAP ---
+    # Bu kısım kodun kalbidir, bir kez hesaplanır her yerde kullanılır.
+    G = nx.from_pandas_edgelist(data_result, source=data_result.columns[0], target=data_result.columns[1])
+    
+    # Metrikleri hesapla
+    degree_cent = nx.degree_centrality(G)
+    betweenness = nx.betweenness_centrality(G)
+    
+    # metrics_df'i burada oluşturuyoruz ki aşağıda NameError vermesin
+    metrics_df = pd.DataFrame({
+        'node': list(degree_cent.keys()),
+        'degree': list(degree_cent.values()),
+        'betweenness': list(betweenness.values())
+    })
 
+    # --- 2. TABS YAPISI ---
     tab1, tab2 = st.tabs(["🕸️ Analiz Haritası", "📊 YZ Metrikleri"])
 
     with tab1:
         st.subheader("🌐 Ağ Etkileşim Haritası")
-        
-        # 1. ANALİZ MOTORUNU BURADA ÇALIŞTIR (G'nin her zaman tanımlı olması için)
-        G = nx.from_pandas_edgelist(data_result, source=data_result.columns[0], target=data_result.columns[1])
-        
         use_ai = st.checkbox("🤖 KNN Sınıflandırmasını Uygula")
-        
-        # 2. PYVIS AĞINI OLUŞTUR
         net = Network(height="550px", width="100%", bgcolor="#ffffff", font_color="black")
         
         if use_ai and len(metrics_df) > 3:
-            # KNN Renklendirmesi
-            for _, row in metrics_df.iterrows():
-                # Eğer AI_Role sütunu henüz yoksa hata vermemesi için kontrol
-                role_color = "#e74c3c" if row.get('AI_Role', 0) == 1 else "#3498db"
-                net.add_node(row['node'], label=str(row['node']), color=role_color)
+            # KNN Renklendirmesi için Tab 2'deki mantığı burada da çalıştıralım
+            X = metrics_df[['degree', 'betweenness']].values
+            y = (metrics_df['betweenness'] > metrics_df['betweenness'].mean()).astype(int)
+            scaler = StandardScaler()
+            X_scaled = scaler.fit_transform(X)
+            knn = KNeighborsClassifier(n_neighbors=min(3, len(X)-1))
+            knn.fit(X_scaled, y)
+            metrics_df['AI_Role'] = knn.predict(X_scaled)
             
-            # Kenarları (Bağlantıları) ekle
-            for source, target in G.edges():
-                net.add_edge(source, target)
+            for _, row in metrics_df.iterrows():
+                role_color = "#e74c3c" if row['AI_Role'] == 1 else "#3498db"
+                net.add_node(row['node'], label=str(row['node']), color=role_color)
+            net.from_nx(G)
         else:
-            # Standart Ağ Gösterimi
             net.from_nx(G)
         
-        # 3. GÖRSEL AYARLAR VE GÖSTERİM
         net.toggle_physics(True)
-        net.set_options("""
-        var options = { "physics": { "forceAtlas2Based": { "gravitationalConstant": -50 } } }
-        """)
-        
-        # HTML olarak ekrana bas
-        try:
-            html_data = net.generate_html()
-            components.html(html_data, height=600)
-        except:
-            st.error("Ağ haritası oluşturulurken bir teknik sorun oluştu.")
+        components.html(net.generate_html(), height=600)
+
     with tab2:
         st.subheader("🤖 Yapay Zeka (KNN) ve Analitik Raporlama")
-        
+        # metrics_df yukarıda tanımlandığı için burada hata vermez!
         if len(metrics_df) > 3:
             try:
                 X = metrics_df[['degree', 'betweenness']].values
@@ -139,7 +141,6 @@ elif isinstance(data_result, pd.DataFrame):
         st.divider()
         st.write("📂 **Analiz Çıktılarını İndir**")
         
-        # Dosyalar ve Etkileşimli Ağ
         c1, c2 = st.columns(2)
         with c1:
             csv_data = metrics_df.to_csv(index=False).encode('utf-8-sig')
@@ -148,39 +149,31 @@ elif isinstance(data_result, pd.DataFrame):
             try:
                 net_dl = Network(height="600px", width="100%", bgcolor="#ffffff", font_color="black")
                 net_dl.from_nx(G)
-                net_dl.toggle_physics(True)
                 net_dl.set_cdn_resources(True)
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".html") as tmp:
                     net_dl.save_graph(tmp.name)
                     with open(tmp.name, 'r', encoding='utf-8') as f:
                         html_string = f.read()
-                st.download_button("🌐 Etkileşimli Ağ (HTML)", html_string, f"interaktif_ag_{current_user}.html", "text/html")
-            except: st.write("HTML Dosyası Hazırlanıyor...")
+                st.download_button("🌐 Etkileşimli Ağ (HTML)", html_string, f"ag_{current_user}.html", "text/html")
+            except: st.write("Hazırlanıyor...")
 
         st.write("📸 **Görsel Kayıtlar**")
-        # --- DÜZELTİLEN KISIM: c3 ve c4 kolonları burada tanımlandı ---
         c3, c4 = st.columns(2) 
         with c3:
-            try:
-                plt.clf()
-                fig_tbl, ax_tbl = plt.subplots(figsize=(10, 6))
-                ax_tbl.axis('off')
-                the_table = ax_tbl.table(cellText=metrics_df.head(20).values, colLabels=metrics_df.columns, loc='center')
-                buf_tbl = BytesIO()
-                plt.savefig(buf_tbl, format="png", dpi=150, bbox_inches='tight')
-                plt.close(fig_tbl)
-                st.download_button("🖼️ Tablo Resmi", buf_tbl.getvalue(), "tablo.png", "image/png")
-            except: st.write("Hazırlanıyor...")
+            plt.clf()
+            fig_tbl, ax_tbl = plt.subplots(figsize=(10, 6))
+            ax_tbl.axis('off')
+            ax_tbl.table(cellText=metrics_df.head(10).values, colLabels=metrics_df.columns, loc='center')
+            buf_tbl = BytesIO()
+            plt.savefig(buf_tbl, format="png")
+            st.download_button("🖼️ Tablo Resmi", buf_tbl.getvalue(), "tablo.png", "image/png")
         with c4:
-            try:
-                plt.clf()
-                fig_gr, ax_gr = plt.subplots(figsize=(10, 8))
-                nx.draw(G, nx.spring_layout(G, k=0.5), with_labels=True, node_color='#3498db', node_size=400, font_size=7)
-                buf_gr = BytesIO()
-                plt.savefig(buf_gr, format="png", dpi=150, bbox_inches='tight')
-                plt.close(fig_gr)
-                st.download_button("📸 Ağ Resmi", buf_gr.getvalue(), "ag.png", "image/png")
-            except: st.write("Hazırlanıyor...")
+            plt.clf()
+            fig_gr, ax_gr = plt.subplots(figsize=(10, 8))
+            nx.draw(G, with_labels=True, node_color='#3498db')
+            buf_gr = BytesIO()
+            plt.savefig(buf_gr, format="png")
+            st.download_button("📸 Ağ Resmi", buf_gr.getvalue(), "ag.png", "image/png")
 
 elif data_result == "NOT_FOUND":
     st.info(f"🔍 Hoş geldin {current_user}! Henüz analiz edilecek bir verin yüklü değil.")

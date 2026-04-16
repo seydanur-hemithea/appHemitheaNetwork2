@@ -119,32 +119,32 @@ elif isinstance(data_result, pd.DataFrame):
             node_x.append(x)
             node_y.append(y)
             
-            # Üzerine gelince çıkacak olan isim ve veriler (Hover)
+            # Hover bilgisini güvenli bir şekilde oluştur
             deg = degree_cent.get(node, 0)
-            bet = betweenness.get(node, 0)
-            node_text.append(f"<b>Düğüm:</b> {node}<br><b>Derece:</b> {deg:.2f}<br><b>Arasındalık:</b> {bet:.2f}")
+            node_text.append(f"Düğüm: {node}<br>Derece: {deg:.2f}")
             
-            # Renklendirme ve Boyutlandırma
-            node_color.append(deg) # Dereceye göre renk değişsin
-            node_size.append(20 + (deg * 50)) # Dereceye göre boyut büyüsün
+            node_color.append(deg)
+            # Boyutun 0 veya negatif olmamasına dikkat edelim
+            node_size.append(max(15, 20 + (deg * 50))) 
     
         node_trace = go.Scatter(
             x=node_x, y=node_y,
             mode='markers+text',
-            text=[str(n) for n in G.nodes()], # İsimler her zaman görünsün istiyorsan kalsın
+            text=[str(n) for n in G.nodes()],
             textposition="top center",
             hoverinfo='text',
-            hovertext=node_text, # Üzerine gelince detaylar çıkar
+            hovertext=node_text,
             marker=dict(
                 showscale=True,
-                colorscale='Viridis', # Şirin ve profesyonel bir renk skalası
+                colorscale='Viridis',
                 reversescale=True,
                 color=node_color,
                 size=node_size,
-                colorbar=dict(thickness=15, title='Etki Seviyesi', xanchor='left', titleside='right'),
-                line_width=2)
+                colorbar=dict(thickness=15, title='Etki'),
+                line=dict(width=2, color='white') # line_width yerine line sözlüğü kullanmak daha güvenlidir
+            )
         )
-    
+        
         # 4. Figürü Oluştur
         fig = go.Figure(data=[edge_trace, node_trace],
                      layout=go.Layout(

@@ -5,6 +5,7 @@ from pyvis.network import Network
 import streamlit.components.v1 as components
 import requests
 from io import StringIO
+import matplotlib.pyplot as plt 
 
 # 1. Sayfa Ayarları
 st.set_page_config(page_title="Hemithea Analiz", layout="wide")
@@ -88,9 +89,29 @@ if data is not None:
         net = Network(height="600px", width="100%", bgcolor="#ffffff", font_color="black")
         net.from_nx(G)
         net.toggle_physics(True)
-        # Siyah ekranı önlemek için save_graph yöntemi daha güvenli olabilir ama şimdilik bunu deneyelim
         html_content = net.generate_html()
         components.html(html_content, height=650)
+
+        # --- PNG İNDİRME ÖZELLİĞİ ---
+        st.divider()
+        st.write("📸 Ağ Görüntüsünü Kaydet")
+        
+        # Statik bir kopya oluştur (İndirme için)
+        fig, ax = plt.subplots(figsize=(10, 7))
+        pos = nx.spring_layout(G)
+        nx.draw(G, pos, ax=ax, with_labels=True, node_color='skyblue', edge_color='gray', node_size=800, font_size=10)
+        
+        buf = BytesIO()
+        fig.savefig(buf, format="png", dpi=300)
+        buf.seek(0)
+        
+        st.download_button(
+            label="Ağ Grafiğini PNG Olarak İndir",
+            data=buf,
+            file_name=f"hemithea_graph_{current_username}.png",
+            mime="image/png"
+        )
+        plt.close(fig) # Belleği temizle
 
     with tab2:
         st.subheader("Ağ İstatistikleri")
@@ -104,6 +125,17 @@ if data is not None:
         }).sort_values(by='Bağlantı Skoru', ascending=False)
 
         st.dataframe(metrics_df, use_container_width=True)
+
+        # --- CSV İNDİRME ÖZELLİĞİ ---
+        st.divider()
+        csv_data = metrics_df.to_csv(index=False).encode('utf-8')
+        
+        st.download_button(
+            label="Metrikleri Tablo (CSV) Olarak İndir",
+            data=csv_data,
+            file_name=f"hemithea_metrics_{current_username}.csv",
+            mime="text/csv"
+        )
 
     with tab3:
         st.subheader("Yüklenen Veri Tablosu")

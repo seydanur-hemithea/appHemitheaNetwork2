@@ -115,7 +115,7 @@ elif isinstance(data_result, pd.DataFrame):
             except Exception as e:
                 st.error(f"YZ Analizi yapılamadı: {e}")
         
-         st.dataframe(metrics_df, width="stretch") 
+        st.dataframe(metrics_df, width="stretch") 
         st.divider()
         
         # --- İNDİRME BÖLÜMÜ (TEK SEFER) ---

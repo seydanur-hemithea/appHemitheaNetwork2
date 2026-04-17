@@ -154,3 +154,4 @@ else:
         st.warning("⚠️ Güvenlik uyarısı: Uygulama üzerinden güvenli giriş yapmanız gerekiyor.")
     else:
         st.warning(f"{current_username} için dosya bulunamadı veya erişim yetkiniz yok.")
+

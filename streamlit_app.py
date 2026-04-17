@@ -8,38 +8,19 @@ from io import StringIO, BytesIO
 import matplotlib.pyplot as plt
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import StandardScaler
-import tempfile
-import os
 
-# --- 1. GİTHUB VİTRİN VE RAW DÖNÜŞTÜRÜCÜ ---
-def to_raw(url):
-    if "github.com" in url and "raw" not in url:
-        return url.replace("github.com", "raw.githubusercontent.com").replace("/blob/", "/")
-    return url
-
-@st.cache_data(ttl=600)
-def get_vitrin_data(secim):
-    linkler = {
-        "Efendi Analizi": "https://github.com/seydanur-hemithea/appHemitheaNetwork2/blob/main/Efendi.csv",
-        "Game of Thrones": "https://github.com/seydanur-hemithea/appHemitheaNetwork2/blob/main/GoT.csv"
-    }
-    try:
-        raw_url = to_raw(linkler[secim])
-        res = requests.get(raw_url)
-        return pd.read_csv(StringIO(res.text))
-    except: return pd.DataFrame({'Kaynak': ['Örnek'], 'Hedef': ['Veri']})
-
-# --- 2. OTURUM VE PARAMETRE YÖNETİMİ ---
+# --- 1. OTURUM VE PARAMETRE YÖNETİMİ ---
 if "username" not in st.session_state:
     st.session_state.username = None
+if "user_data" not in st.session_state:
+    st.session_state.user_data = None
 
-# Android'den gelen linki yakala
 params = st.query_params
 if "username" in params and not st.session_state.username:
     st.session_state.username = params["username"]
     st.session_state.token = params.get("token", "")
 
-# --- 3. GÜVENLİ VERİ ÇEKME (RENDER) ---
+# --- 2. GÜVENLİ VERİ ÇEKME (RENDER) ---
 @st.cache_data(ttl=2)
 def load_dynamic_data(uname, token):
     if not uname or not token: return None
@@ -52,47 +33,54 @@ def load_dynamic_data(uname, token):
         return "NOT_FOUND"
     except: return "CONNECTION_ERROR"
 
-# --- 4. ANA AKIŞ VE GİRİŞ EKRANI ---
-st.set_page_config(page_title="Hemithea Network", layout="wide")
+# --- 3. ANA EKRAN AYARLARI ---
+st.set_page_config(page_title="Hemithea Analytics", layout="wide")
 st.title("🌐 Hemithea Network Analytics")
 
-if not st.session_state.username:
-    # --- VİTRİN VE GİRİŞ MODU ---
-    st.info("👋 **Hemithea'ya Hoş Geldiniz!** Kendi analizleriniz için giriş yapın veya örnekleri inceleyin.")
+# --- 4. SIDEBAR: GİRİŞ VE DOSYA YÜKLEME ---
+with st.sidebar:
+    st.header("⚙️ Kontrol Paneli")
     
-    with st.sidebar:
-        st.subheader("🛡️ Üye Paneli")
-        mode = st.radio("İşlem Seçin:", ["Giriş Yap", "Kayıt Ol (Android)"])
-        
+    if not st.session_state.username:
+        st.subheader("🔑 Giriş")
         u_id = st.text_input("Kullanıcı ID:")
         u_tk = st.text_input("Token:", type="password")
-        
         if st.button("Sistemi Başlat"):
-            if u_id and u_tk:
-                st.session_state.username = u_id
-                st.session_state.token = u_tk
-                st.rerun()
-            else: st.warning("Lütfen bilgileri girin.")
-        
-        if mode == "Kayıt Ol (Android)":
-            st.caption("✨ Kayıt işlemleri yakında doğrudan buradan da yapılabilecek. Şimdilik Android kimliğinizi kullanın.")
-
-    # Vitrin Seçimi
-    v_secim = st.radio("Örnek Analizleri İnceleyin:", ["Efendi Analizi", "Game of Thrones"], horizontal=True)
-    data_result = get_vitrin_data(v_secim)
-else:
-    # --- GİRİŞ YAPILMIŞ MOD ---
-    with st.sidebar:
-        st.success(f"Giriş Yapıldı: {st.session_state.username}")
-        if st.button("Oturumu Kapat"):
-            st.session_state.username = None
+            st.session_state.username = u_id
+            st.session_state.token = u_tk
             st.rerun()
-    
-    data_result = load_dynamic_data(st.session_state.username, st.session_state.token)
+    else:
+        st.success(f"Kullanıcı: {st.session_state.username}")
+        
+        # İŞTE BURASI: Kendi Verini Analiz Et Kısmı
+        st.divider()
+        st.subheader("📤 Kendi Verini Analiz Et")
+        uploaded_file = st.file_uploader("CSV dosyanızı yükleyin", type=["csv"])
+        if uploaded_file:
+            st.session_state.user_data = pd.read_csv(uploaded_file)
+            st.toast("Kendi veriniz yüklendi!", icon="✅")
 
-# --- 5. ANALİZ VE GÖRSELLEŞTİRME (EN STABİL HALİ) ---
+        if st.button("🚪 Oturumu Kapat"):
+            st.session_state.username = None
+            st.session_state.user_data = None
+            st.rerun()
+
+# --- 5. VERİ SEÇİM MANTIĞI ---
+data_result = None
+
+if st.session_state.username:
+    # Öncelik: Kullanıcının o an yüklediği dosya
+    if st.session_state.user_data is not None:
+        data_result = st.session_state.user_data
+    # İkinci Sırada: Render sunucusundaki kayıtlı dosya
+    else:
+        data_result = load_dynamic_data(st.session_state.username, st.session_state.token)
+else:
+    st.info("👋 Lütfen giriş yapın veya Android uygulamasından yönlenin.")
+    st.stop()
+
+# --- 6. ANALİZ VE GÖRSELLEŞTİRME ---
 if isinstance(data_result, pd.DataFrame):
-    # Düğüm ve Kenar Oluşturma
     G = nx.from_pandas_edgelist(data_result, source=data_result.columns[0], target=data_result.columns[1])
     degree_cent = nx.degree_centrality(G)
     betweenness = nx.betweenness_centrality(G)
@@ -103,37 +91,43 @@ if isinstance(data_result, pd.DataFrame):
         'betweenness': list(betweenness.values())
     })
 
-    # KNN Analizi
+    # KNN ve Renklendirme
     if len(metrics_df) > 3:
-        try:
-            X = metrics_df[['degree', 'betweenness']].values
-            y = (metrics_df['betweenness'] > metrics_df['betweenness'].mean()).astype(int)
-            X_scaled = StandardScaler().fit_transform(X)
-            knn = KNeighborsClassifier(n_neighbors=min(3, len(metrics_df)-1)).fit(X_scaled, y)
-            metrics_df['AI_Kategori'] = knn.predict(X_scaled)
-            metrics_df['color'] = metrics_df['AI_Kategori'].map({1: "#e74c3c", 0: "#3498db"})
-            metrics_df['Durum'] = metrics_df['AI_Kategori'].map({1: "🎯 Stratejik", 0: "👤 Normal"})
-        except:
-            metrics_df['color'] = "#3498db"
-            metrics_df['Durum'] = "Normal"
+        X = metrics_df[['degree', 'betweenness']].values
+        y = (metrics_df['betweenness'] > metrics_df['betweenness'].mean()).astype(int)
+        X_scaled = StandardScaler().fit_transform(X)
+        knn = KNeighborsClassifier(n_neighbors=min(3, len(metrics_df)-1)).fit(X_scaled, y)
+        metrics_df['color'] = pd.Series(knn.predict(X_scaled)).map({1: "#e74c3c", 0: "#3498db"})
 
-    # Pyvis Grafik Çizimi
-    st.subheader("🌐 İnteraktif Ağ Haritası")
-    try:
-        net = Network(height="550px", width="100%", bgcolor="#ffffff", font_color="black")
-        for _, row in metrics_df.iterrows():
-            net.add_node(row['node'], label=str(row['node']), color=row.get('color', "#3498db"))
-        for edge in G.edges():
-            net.add_edge(edge[0], edge[1])
-        net.toggle_physics(True)
-        html_data = net.generate_html()
-        components.html(html_data, height=600, scrolling=False)
-    except:
-        st.error("Grafik oluşturulurken bir sorun oluştu.")
-
-    # Tablo ve İndirme
-    st.divider()
-    st.dataframe(metrics_df[['node', 'degree', 'betweenness', 'Durum']], use_container_width=True)
+    # GRAFİK ÇİZİMİ
+    st.subheader("🕸️ Etkileşim Haritası")
+    net = Network(height="500px", width="100%", bgcolor="#ffffff", font_color="black")
+    for _, row in metrics_df.iterrows():
+        net.add_node(row['node'], label=str(row['node']), color=row.get('color', "#3498db"))
+    for edge in G.edges():
+        net.add_edge(edge[0], edge[1])
     
-    csv_data = metrics_df.to_csv(index=False).encode('utf-8-sig')
-    st.download_button("📄 Analiz Raporunu İndir (CSV)", csv_data, f"rapor_{st.session_state.username}.csv")
+    html_data = net.generate_html()
+    components.html(html_data, height=550)
+
+    # --- 7. İNDİRME BAĞLANTILARI ---
+    st.divider()
+    st.subheader("📥 Raporları İndir")
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        # CSV İndir
+        csv = metrics_df.to_csv(index=False).encode('utf-8-sig')
+        st.download_button("📄 CSV Raporu", csv, "hemithea_analiz.csv", "text/csv")
+        
+    with col2:
+        # HTML Grafiği İndir
+        st.download_button("🌐 HTML Haritası", html_data, "network.html", "text/html")
+        
+    with col3:
+        # PNG (Matplotlib üzerinden statik kopya)
+        fig, ax = plt.subplots()
+        nx.draw(G, with_labels=True, node_color="#3498db", edge_color="#bdc3c7")
+        buf = BytesIO()
+        plt.savefig(buf, format="png")
+        st.download_button("🖼️ PNG Olarak Kaydet", buf.getvalue(), "network.png", "image/png")

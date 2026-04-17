@@ -95,35 +95,36 @@ if data is not None:
     G = nx.from_pandas_edgelist(data, source=src, target=tgt)
 
     with tab1:
-        # --- 6. ANALİZ VE GÖRSELLEŞTİRME ---
-        degree_cent = nx.degree_centrality(G)
-        betweenness = nx.betweenness_centrality(G)
-        
-        metrics_df = pd.DataFrame({
-            'node': list(degree_cent.keys()),
-            'degree': list(degree_cent.values()),
-            'betweenness': list(betweenness.values())
-        })
+        if isinstance(data, pd.DataFrame):
+            G = nx.from_pandas_edgelist(data, source=data.columns[0], target=data.columns[1])
+            degree_cent = nx.degree_centrality(G)
+            betweenness = nx.betweenness_centrality(G)
     
-        # KNN ve Renklendirme
-        if len(metrics_df) > 3:
-            X = metrics_df[['degree', 'betweenness']].values
-            y = (metrics_df['betweenness'] > metrics_df['betweenness'].mean()).astype(int)
-            X_scaled = StandardScaler().fit_transform(X)
-            knn = KNeighborsClassifier(n_neighbors=min(3, len(metrics_df)-1)).fit(X_scaled, y)
-            metrics_df['color'] = pd.Series(knn.predict(X_scaled)).map({1: "#e74c3c", 0: "#3498db"})
-        else:
-            metrics_df['color'] = "#3498db"
+            metrics_df = pd.DataFrame({
+                'node': list(degree_cent.keys()),
+                'degree': list(degree_cent.values()),
+                'betweenness': list(betweenness.values())
+            })
     
-        st.subheader("🕸️ Etkileşim Haritası")
-        net = Network(height="500px", width="100%", bgcolor="#ffffff", font_color="black")
-        for _, row in metrics_df.iterrows():
-            net.add_node(row['node'], label=str(row['node']), color=row['color'])
-        for edge in G.edges():
-            net.add_edge(edge[0], edge[1])
-        
-        html_data = net.generate_html()
-        components.html(html_data, height=550)
+            if len(metrics_df) > 3:
+                X = metrics_df[['degree', 'betweenness']].values
+                y = (metrics_df['betweenness'] > metrics_df['betweenness'].mean()).astype(int)
+                X_scaled = StandardScaler().fit_transform(X)
+                n_neighbors = max(1, min(3, len(metrics_df)-1))
+                knn = KNeighborsClassifier(n_neighbors=n_neighbors).fit(X_scaled, y)
+                metrics_df['color'] = pd.Series(knn.predict(X_scaled)).map({1: "#e74c3c", 0: "#3498db"})
+            else:
+                metrics_df['color'] = "#3498db"
+    
+            st.subheader("🕸️ Etkileşim Haritası")
+            net = Network(height="500px", width="100%", bgcolor="#ffffff", font_color="black")
+            for _, row in metrics_df.iterrows():
+                net.add_node(row['node'], label=str(row['node']), color=row['color'])
+            for edge in G.edges():
+                net.add_edge(edge[0], edge[1])
+    
+            html_data = net.generate_html()
+            components.html(html_data, height=550)
 
         # İndirme butonları
         csv = metrics_df.to_csv(index=False).encode('utf-8-sig')

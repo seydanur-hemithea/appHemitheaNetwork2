@@ -23,6 +23,24 @@ st.markdown("""
 # --- AYARLAR ---
 BASE_RENDER_URL = "https://apphemitheanetwork.onrender.com/uploads"
 
+# --- 1. GİTHUB VİTRİN VE RAW DÖNÜŞTÜRÜCÜ ---
+def to_raw(url):
+    if "github.com" in url and "raw" not in url:
+        return url.replace("github.com", "raw.githubusercontent.com").replace("/blob/", "/")
+    return url
+
+@st.cache_data(ttl=600)
+def get_vitrin_data(secim):
+    linkler = {
+        "Efendi Analizi": "https://github.com/seydanur-hemithea/appHemitheaNetwork2/blob/main/Efendi.csv",
+        "Game of Thrones": "https://github.com/seydanur-hemithea/appHemitheaNetwork2/blob/main/GoT.csv"
+    }
+    try:
+        raw_url = to_raw(linkler[secim])
+        res = requests.get(raw_url)
+        return pd.read_csv(StringIO(res.text))
+    except: return pd.DataFrame({'Kaynak': ['Örnek'], 'Hedef': ['Veri']})
+
 # 2. Dinamik Veri Yükleme Fonksiyonu
 @st.cache_data(ttl=2)
 def load_dynamic_data(uname, token): # Token parametresi eklendi
@@ -87,13 +105,36 @@ if data is not None:
     G = nx.from_pandas_edgelist(data, source=src, target=tgt)
 
     with tab1:
-        st.subheader("Etkileşimli Ağ Haritası")
-        net = Network(height="600px", width="100%", bgcolor="#ffffff", font_color="black")
-        net.from_nx(G)
-        net.toggle_physics(True)
-        # Siyah ekranı önlemek için save_graph yöntemi daha güvenli olabilir ama şimdilik bunu deneyelim
-        html_content = net.generate_html()
-        components.html(html_content, height=650)
+        # --- 6. ANALİZ VE GÖRSELLEŞTİRME ---
+if isinstance(data_result, pd.DataFrame):
+    G = nx.from_pandas_edgelist(data_result, source=data_result.columns[0], target=data_result.columns[1])
+    degree_cent = nx.degree_centrality(G)
+    betweenness = nx.betweenness_centrality(G)
+    
+    metrics_df = pd.DataFrame({
+        'node': list(degree_cent.keys()),
+        'degree': list(degree_cent.values()),
+        'betweenness': list(betweenness.values())
+    })
+
+    # KNN ve Renklendirme
+    if len(metrics_df) > 3:
+        X = metrics_df[['degree', 'betweenness']].values
+        y = (metrics_df['betweenness'] > metrics_df['betweenness'].mean()).astype(int)
+        X_scaled = StandardScaler().fit_transform(X)
+        knn = KNeighborsClassifier(n_neighbors=min(3, len(metrics_df)-1)).fit(X_scaled, y)
+        metrics_df['color'] = pd.Series(knn.predict(X_scaled)).map({1: "#e74c3c", 0: "#3498db"})
+
+    # GRAFİK ÇİZİMİ
+    st.subheader("🕸️ Etkileşim Haritası")
+    net = Network(height="500px", width="100%", bgcolor="#ffffff", font_color="black")
+    for _, row in metrics_df.iterrows():
+        net.add_node(row['node'], label=str(row['node']), color=row.get('color', "#3498db"))
+    for edge in G.edges():
+        net.add_edge(edge[0], edge[1])
+    
+    html_data = net.generate_html()
+    components.html(html_data, height=550)
 
     with tab2:
         st.subheader("Ağ İstatistikleri")

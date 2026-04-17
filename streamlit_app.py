@@ -106,35 +106,35 @@ if data is not None:
 
     with tab1:
         # --- 6. ANALİZ VE GÖRSELLEŞTİRME ---
-if isinstance(data_result, pd.DataFrame):
-    G = nx.from_pandas_edgelist(data_result, source=data_result.columns[0], target=data_result.columns[1])
-    degree_cent = nx.degree_centrality(G)
-    betweenness = nx.betweenness_centrality(G)
+    if isinstance(data_result, pd.DataFrame):
+        G = nx.from_pandas_edgelist(data_result, source=data_result.columns[0], target=data_result.columns[1])
+        degree_cent = nx.degree_centrality(G)
+        betweenness = nx.betweenness_centrality(G)
+        
+        metrics_df = pd.DataFrame({
+            'node': list(degree_cent.keys()),
+            'degree': list(degree_cent.values()),
+            'betweenness': list(betweenness.values())
+        })
     
-    metrics_df = pd.DataFrame({
-        'node': list(degree_cent.keys()),
-        'degree': list(degree_cent.values()),
-        'betweenness': list(betweenness.values())
-    })
-
-    # KNN ve Renklendirme
-    if len(metrics_df) > 3:
-        X = metrics_df[['degree', 'betweenness']].values
-        y = (metrics_df['betweenness'] > metrics_df['betweenness'].mean()).astype(int)
-        X_scaled = StandardScaler().fit_transform(X)
-        knn = KNeighborsClassifier(n_neighbors=min(3, len(metrics_df)-1)).fit(X_scaled, y)
-        metrics_df['color'] = pd.Series(knn.predict(X_scaled)).map({1: "#e74c3c", 0: "#3498db"})
-
-    # GRAFİK ÇİZİMİ
-    st.subheader("🕸️ Etkileşim Haritası")
-    net = Network(height="500px", width="100%", bgcolor="#ffffff", font_color="black")
-    for _, row in metrics_df.iterrows():
-        net.add_node(row['node'], label=str(row['node']), color=row.get('color', "#3498db"))
-    for edge in G.edges():
-        net.add_edge(edge[0], edge[1])
+        # KNN ve Renklendirme
+        if len(metrics_df) > 3:
+            X = metrics_df[['degree', 'betweenness']].values
+            y = (metrics_df['betweenness'] > metrics_df['betweenness'].mean()).astype(int)
+            X_scaled = StandardScaler().fit_transform(X)
+            knn = KNeighborsClassifier(n_neighbors=min(3, len(metrics_df)-1)).fit(X_scaled, y)
+            metrics_df['color'] = pd.Series(knn.predict(X_scaled)).map({1: "#e74c3c", 0: "#3498db"})
     
-    html_data = net.generate_html()
-    components.html(html_data, height=550)
+        # GRAFİK ÇİZİMİ
+        st.subheader("🕸️ Etkileşim Haritası")
+        net = Network(height="500px", width="100%", bgcolor="#ffffff", font_color="black")
+        for _, row in metrics_df.iterrows():
+            net.add_node(row['node'], label=str(row['node']), color=row.get('color', "#3498db"))
+        for edge in G.edges():
+            net.add_edge(edge[0], edge[1])
+        
+        html_data = net.generate_html()
+        components.html(html_data, height=550)
 
     with tab2:
         st.subheader("Ağ İstatistikleri")

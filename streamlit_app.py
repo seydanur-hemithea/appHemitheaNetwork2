@@ -113,15 +113,34 @@ if final_data is not None:
     tab1, tab2, tab3 = st.tabs(["🕸️ Ağ Haritası", "📈 Metrikler", "📄 Veri"])
 
     with tab1:
-        st.subheader("Etkileşim Haritası")
-        net = Network(height="550px", width="100%", bgcolor="#ffffff", font_color="black")
+    if isinstance(data, pd.DataFrame):
+        G = nx.from_pandas_edgelist(data, source=data.columns[0], target=data.columns[1])
+        degree_cent = nx.degree_centrality(G)
+        betweenness = nx.betweenness_centrality(G)
+
+        metrics_df = pd.DataFrame({
+            'node': list(degree_cent.keys()),
+            'degree': list(degree_cent.values()),
+            'betweenness': list(betweenness.values())
+        })
+
+        metrics_df['color'] = np.where(
+            metrics_df['betweenness'] > metrics_df['betweenness'].mean(),
+            "#e74c3c", "#3498db"
+        )
+
+        st.subheader("🕸️ Etkileşim Haritası")
+        net = Network(height="500px", width="100%", bgcolor="#ffffff", font_color="black")
         for _, row in metrics_df.iterrows():
-            net.add_node(row['node'], label=str(row['node']), color=row.get('color', "#3498db"))
+            net.add_node(row['node'], label=str(row['node']), color=row['color'])
         for edge in G.edges():
             net.add_edge(edge[0], edge[1])
-        
+
         html_data = net.generate_html()
-        components.html(html_data, height=600)
+        components.html(html_data, height=550)
+
+        
+
 
     with tab2:
         st.subheader("Ağ İstatistikleri (KNN)")

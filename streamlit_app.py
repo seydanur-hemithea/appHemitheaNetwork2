@@ -9,6 +9,16 @@ import matplotlib.pyplot as plt
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import StandardScaler
 
+hide_streamlit_style = """
+            <style>
+            #MainMenu {visibility: hidden;}
+            footer {visibility: hidden;}
+            header {visibility: hidden;}
+            </style>
+            """
+
+# CSS'i uygulamaya enjekte edin
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 # 1. Sayfa Ayarları
 st.set_page_config(page_title="Hemithea Analiz", layout="wide")
 

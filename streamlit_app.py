@@ -9,6 +9,8 @@ import matplotlib.pyplot as plt
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import StandardScaler
 
+# 1. Sayfa Ayarları
+st.set_page_config(page_title="Hemithea Analiz", layout="wide")
 
 
 hide_streamlit_style = """
@@ -27,8 +29,6 @@ hide_streamlit_style = """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
 
-# 1. Sayfa Ayarları
-st.set_page_config(page_title="Hemithea Analiz", layout="wide")
 
 # Mobil CSS
 st.markdown("""

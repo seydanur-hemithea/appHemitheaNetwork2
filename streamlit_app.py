@@ -39,7 +39,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --- AYARLAR ---
-BASE_RENDER_URL = "https://apphemitheanetwork.onrender.com/uploads"
+#render_url
 
 # --- 1. GİTHUB VİTRİN VE RAW DÖNÜŞTÜRÜCÜ ---
 def to_raw(url):
